@@ -18,7 +18,9 @@ interface CardPickerProps {
 export function CardPicker({ value, onChange, currentPhaseId }: CardPickerProps) {
   const [query, setQuery] = useState('');
   const phases = usePhases() ?? [];
-  const cards = useLiveQuery(() => db.cards.toArray(), []) ?? [];
+  // Cards of the active journal only (through its phases).
+  const phaseKey = phases.map((p) => p.id).join();
+  const cards = useLiveQuery(() => db.cards.where('phaseId').anyOf(phaseKey ? phaseKey.split(',') : []).toArray(), [phaseKey]) ?? [];
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -13,6 +13,8 @@ A central **Document Library** (the **Documents** button in the top bar) lists e
 
 **Recall** (the **Recall** button in the top bar) turns knowledge cards and extracts into flashcards with simple spaced repetition.
 
+You can keep several **journals** (for example a DCF playbook, one per company you value, a cost-of-capital reference), each completely separate, and back them up to a **ZIP file**.
+
 Everything is stored in your browser's IndexedDB, including images and documents. There is no server, no account and no cloud viewer.
 
 ## Run it
@@ -59,6 +61,16 @@ Supported images for snapshots: PNG, JPG/JPEG and WebP, up to 25 MB each.
 - Text inside PDFs, TXT, Markdown and CSV files is read in the background for search (up to about 750,000 characters per file). Scanned PDFs without a text layer can be viewed but not searched.
 - Global search results for a PDF open it with the search already run inside the document.
 
+## Journals and backups
+
+- **Switch journals** with the journal name at the top left. The list also has **New journal**, **Manage journals** and **Backup & restore**.
+- **New journal:** start from the **DCF template** (13 phases with checklists and starter cards), a copy of an **existing journal** (everything, files included, as an independent copy) or an **empty** workspace.
+- **Manage journals:** see what each holds; open, rename, duplicate, export or delete it. Deleting asks first and lists exactly what will go. The last journal can't be deleted.
+- Each journal has its own phases and their order, checklists, cards, snapshots, extracts, documents, tags and Recall deck. Search, the Document Library and Recall only show the open journal.
+- **Export backup** saves one `.zip` with the chosen journals: every record, the original images and documents, connections, and Recall history and schedules. It goes to your browser's downloads folder. **Keep it somewhere safe**; it is the only copy of your journal outside this browser.
+- **Restore from backup** checks the file first (damaged or foreign files are refused with a reason) and nothing changes until you choose, for each journal in it, **Import as a new journal**, **Replace** the journal with the same name, or **Skip**. Replacing asks for confirmation. Restored records always get new ids, so a restore never collides with what is already there.
+- Limits: one backup must stay under 4 GB; export big journals separately if needed.
+
 ## Recall
 
 - **Add cards:** the brain icon on any knowledge card or extract (in its hover toolbar), or **Add cards** on the Recall page to pick many at once by phase, type or pinned. A revision card links to its source; it never copies it, so editing the card updates the flashcard. Deleting the card removes it from Recall.
@@ -91,11 +103,13 @@ src/
   db/
     database.ts            Dexie (IndexedDB) schema and versioned migrations
     seed.ts                Starter DCF journal: runs once, when the database is first created
-    repository.ts          All writes: create / update / delete / reorder, including image and document storage
+    repository.ts          All writes: create / update / delete / reorder, including image and document storage, journals and restores
+    bundle.ts              Whole-journal copy / import / delete (used by repository.ts)
   hooks/
     useJournalData.ts      Live queries; components re-render when data changes
     useBlobUrl.ts          Shared, reference-counted object URLs for stored files (revoked when unused), downloads
     useHashRoute.ts        #/, #/phase/<id>, #/documents and #/recall routing (back button + refresh work)
+    useActiveJournal.ts    The open journal, the journal list
     useNow.ts              A clock that ticks each minute (for "due now" counts)
     useTheme.ts            Light / dark preference
   lib/
@@ -106,6 +120,8 @@ src/
     csv.ts, markdown.ts    Small parsers for the CSV and Markdown previews
     search.ts              Global search across phases, tasks, cards, snapshots, extracts and documents
     recall.ts              Spaced-repetition schedule (intervals, due dates, labels)
+    activeJournal.ts       Which journal is open (remembered between visits)
+    zip.ts, backup.ts      ZIP writer/reader and the backup format (export, checks, restore)
     cardTypes.ts, extractKinds.ts, format.ts
   components/
     overview/              Pathway, phase cards, summary
@@ -113,6 +129,8 @@ src/
     library/               Snapshot gallery, image viewer, extracts, filters, editors, drop overlay
     documents/             Document Library page, phase Documents tab, viewer and previews, editor, link dialog
     recall/                Recall dashboard, revision session, flashcard, add-to-Recall dialog, card toggles
+    journals/              Journal switcher, new / rename / manage dialogs, backup & restore
+    AppHeader.tsx          The page header (journal switcher, navigation, search, theme)
     phases/                Add / edit / reorder / delete phase dialogs
     search/                Global search palette
     ui/                    Buttons, modal, confirm dialog, toasts, inline editing, tag input, select…
@@ -123,9 +141,10 @@ scripts/
 ## Data notes
 
 - The starter journal is written only when the database is created for the first time. Your edits are never overwritten on later launches.
-- **Schema versions:** v1 (Milestone 1) holds phases, checklist, cards, attachments and meta. v2 (Milestone 2) adds `snapshots` and `extracts`. v3 (Milestone 3) adds `documents` and `documentTexts`. v4 (Milestone 4) adds `revisions` and `reviewLog`. Each upgrade keeps all existing content. To evolve the schema, add a new `this.version(n)` block in `db/database.ts`; never edit an earlier version.
+- **Schema versions:** v1 (Milestone 1) holds phases, checklist, cards, attachments and meta. v2 (Milestone 2) adds `snapshots` and `extracts`. v3 (Milestone 3) adds `documents` and `documentTexts`. v4 (Milestone 4) adds `revisions` and `reviewLog`. Milestone 5 (journals and backups) needed no schema change. Each upgrade keeps all existing content. To evolve the schema, add a new `this.version(n)` block in `db/database.ts`; never edit an earlier version.
 - Snapshot and document records hold metadata and a small thumbnail. Full files are stored separately in `attachments`, so lists stay fast.
 - Deleting a snapshot deletes its stored image. Deleting a document deletes its file and search text. Deleting a card, extract or snapshot removes its connections but keeps the connected documents.
 - Deleting a card or extract also removes its revision card and review history. Removing a card from Recall keeps the card.
 - Deleting a phase removes its tasks, cards, snapshots, extracts and their revision cards. Documents filed in it are kept in the Document Library as **Unfiled**.
-- Data lives in the browser profile you use. A different browser (or a private window) starts with a fresh starter journal, and clearing site data deletes the journal, documents included. There is no backup or export yet, so keep your original files.
+- Data lives in the browser profile you use. A different browser (or a private window) starts with a fresh starter journal, and clearing site data deletes every journal, documents included. **Export a backup regularly** (journal menu → Backup & restore) and keep the ZIP somewhere safe.
+- Deleting a journal deletes everything in it (asks first). Other journals are never affected.

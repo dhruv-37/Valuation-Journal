@@ -43,10 +43,12 @@ function DocumentForm({ document: doc, phases, onClose }: { document: ResearchDo
   const [snapshotIds, setSnapshotIds] = useState(doc.snapshotIds);
   const allTags = useAllTags();
 
+  const phaseKey = phases.map((p) => p.id).join();
   const library = useLiveQuery(async () => {
-    const [extracts, snapshots] = await Promise.all([db.extracts.toArray(), db.snapshots.toArray()]);
+    const phaseIds = phases.map((p) => p.id);
+    const [extracts, snapshots] = await Promise.all([db.extracts.where('phaseId').anyOf(phaseIds).toArray(), db.snapshots.where('phaseId').anyOf(phaseIds).toArray()]);
     return { extracts, snapshots };
-  }, []);
+  }, [phaseKey]);
 
   const phaseGroups = useMemo(() => phases.map((p, i) => ({ id: p.id, label: `${phaseNumber(i)} · ${p.title}` })), [phases]);
   const phaseItems = useMemo<PickerItem[]>(

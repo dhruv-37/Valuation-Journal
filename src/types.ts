@@ -224,6 +224,42 @@ export interface ReviewLogEntry {
   before: RevisionSchedule;
 }
 
+/* --------------------------------- Journals --------------------------------- */
+
+/**
+ * Everything one journal owns, in one object. Used to duplicate a journal, and
+ * as the content of a backup. Ids are always replaced when a bundle is written,
+ * so a copy never shares a record with its original.
+ */
+export interface JournalBundle {
+  journal: Journal;
+  phases: Phase[];
+  checklist: ChecklistItem[];
+  cards: KnowledgeCard[];
+  snapshots: Snapshot[];
+  extracts: KnowledgeExtract[];
+  documents: ResearchDocument[];
+  documentTexts: DocumentText[];
+  attachments: Attachment[];
+  revisions: RevisionCard[];
+  reviewLog: ReviewLogEntry[];
+  /** The phase last opened in this journal. */
+  lastPhaseId?: ID;
+}
+
+/** Record counts of a journal, for previews and confirmations. */
+export interface JournalCounts {
+  phases: number;
+  tasks: number;
+  cards: number;
+  snapshots: number;
+  extracts: number;
+  documents: number;
+  revisions: number;
+  /** Total size of stored files (images and documents), in bytes. */
+  fileBytes: number;
+}
+
 export interface MetaEntry {
   key: string;
   value: unknown;

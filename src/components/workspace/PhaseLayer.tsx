@@ -5,6 +5,7 @@ import type { ID, Phase } from '../../types';
 import { phaseNumber, isTypingTarget } from '../../lib/format';
 import { isDialogOpen } from '../ui/Modal';
 import { router } from '../../hooks/useHashRoute';
+import { useActiveJournal } from '../../hooks/useActiveJournal';
 import { IconButton, Kbd } from '../ui/Button';
 import { ThemeToggle } from '../ThemeToggle';
 import { BrandMark } from '../BrandMark';
@@ -59,6 +60,7 @@ interface PhaseLayerProps {
 
 export function PhaseLayer({ phaseId, phases, focus, backLabel, onClose, onNavigate, onEditPhase, onSearch }: PhaseLayerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const journal = useActiveJournal();
   const index = phases.findIndex((p) => p.id === phaseId);
   const phase = phases[index];
   const prev = phases[index - 1];
@@ -128,8 +130,8 @@ export function PhaseLayer({ phaseId, phases, focus, backLabel, onClose, onNavig
             <button type="button" onClick={onClose} className="hidden shrink-0 rounded-md hover:text-ink md:block" title="Back to overview">
               <BrandMark compact />
             </button>
-            <button type="button" onClick={onClose} className="hidden shrink-0 text-muted hover:text-ink md:inline">
-              Valuation Journal
+            <button type="button" onClick={onClose} className="hidden max-w-56 shrink-0 truncate text-muted hover:text-ink md:inline">
+              {journal?.name ?? 'Valuation Journal'}
             </button>
             <ChevronRight className="hidden size-3.5 shrink-0 text-faint md:block" />
             <span className="truncate text-ink">

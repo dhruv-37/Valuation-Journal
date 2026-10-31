@@ -1,18 +1,13 @@
 import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { Brain, Info, Pin, Play, Plus, Search, X, Zap } from 'lucide-react';
-import { db } from '../../db/database';
 import type { ID, Phase } from '../../types';
 import { useRecallItems, type RecallItem } from '../../hooks/useJournalData';
 import { useNow } from '../../hooks/useNow';
-import { DEFAULT_JOURNAL_ID } from '../../lib/id';
 import { INTERVAL_DAYS, MASTERED_LEVEL, isDue } from '../../lib/recall';
 import { percent, phaseNumber } from '../../lib/format';
-import { router } from '../../hooks/useHashRoute';
-import { BrandMark } from '../BrandMark';
-import { MainNav } from '../MainNav';
-import { ThemeToggle } from '../ThemeToggle';
-import { Button, Kbd } from '../ui/Button';
+import { useActiveJournal } from '../../hooks/useActiveJournal';
+import { Button } from '../ui/Button';
+import { AppHeader } from '../AppHeader';
 import { Select } from '../ui/Select';
 import type { RecallSessionState } from './RecallSession';
 import { AddToRecallDialog } from './AddToRecallDialog';
@@ -38,7 +33,7 @@ const SESSION_SIZES = [
 /** The Recall dashboard: how revision is going, and the way into a session. */
 export function RecallPage({ phases, documentCount, onSearch, onStart, onOpenSource }: RecallPageProps) {
   const items = useRecallItems();
-  const journal = useLiveQuery(() => db.journals.get(DEFAULT_JOURNAL_ID), []);
+  const journal = useActiveJournal();
   const [filters, setFilters] = useState<RecallFilters>(DEFAULT_FILTERS);
   const [query, setQuery] = useState('');
   const [size, setSize] = useState('20');
@@ -107,29 +102,7 @@ export function RecallPage({ phases, documentCount, onSearch, onStart, onOpenSou
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-20 border-b border-line/70 bg-canvas/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between gap-3 px-4 sm:px-8">
-          <button type="button" onClick={router.toPathway} className="shrink-0 rounded-lg" title="Pathway overview">
-            <BrandMark />
-          </button>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <MainNav current="recall" documentCount={documentCount} />
-            <button
-              type="button"
-              onClick={onSearch}
-              aria-label="Search journal"
-              className="flex size-9 items-center justify-center gap-2 rounded-xl border border-line bg-surface text-muted shadow-card transition-colors hover:border-line-strong hover:text-ink lg:w-auto lg:px-3"
-            >
-              <Search className="size-4" />
-              <span className="hidden items-center gap-0.5 lg:flex">
-                <Kbd>Ctrl</Kbd>
-                <Kbd>K</Kbd>
-              </span>
-            </button>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+      <AppHeader current="recall" documentCount={documentCount} onSearch={onSearch} />
 
       <main className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-8">
         <section className="grid items-end gap-8 py-10 sm:py-14 lg:grid-cols-[minmax(0,1fr)_auto]">

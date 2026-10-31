@@ -23,7 +23,12 @@ There is no automated test suite. Verify behaviour in the browser.
 - **The seed runs only in Dexie's `populate` event.** Never re-seed, reset or overwrite existing records.
 - **All writes go through `src/db/repository.ts`.**
   - Multi-table changes, such as cascading deletes, run in one `db.transaction`.
+  - Whole-journal operations (copy, import, delete) live in `src/db/bundle.ts` and are only called from the repository.
   - Components read through `useLiveQuery` hooks in `src/hooks/useJournalData.ts`.
+- **Journals are isolated.** Every read must be scoped to the active journal:
+  - phase-owned tables (`checklist`, `cards`, `snapshots`, `extracts`, phase-owned `attachments`) through `journalPhaseIds(journalId)` and `where('phaseId').anyOf(...)`;
+  - `documents`, `revisions` and `reviewLog` through `where('journalId')`.
+  - Never `toArray()` a whole table in UI code. New tables need a `journalId` (or a phase) and must be added to `db/bundle.ts` (collect, remap, write, delete) and to the backup format in `src/lib/backup.ts`.
 - **Binary data lives in IndexedDB.**
   - Store blobs in IndexedDB (`attachments`, or snapshot `thumbnail`), never in localStorage.
   - Object URLs come from `useBlobUrl` (refcounted, revoked when unused). Never call `URL.createObjectURL` ad hoc.
@@ -51,7 +56,8 @@ There is no automated test suite. Verify behaviour in the browser.
 - **Code style**
   - Match the surrounding code: short doc comments explaining *why*, named exports, one component per file, and types in `src/types.ts`.
 - **Routing**
-  - Hash routes (`#/`, `#/phase/<id>`) via `router` in `src/hooks/useHashRoute.ts`.
+  - Hash routes (`#/`, `#/documents`, `#/recall`, `#/phase/<id>`) via `router` in `src/hooks/useHashRoute.ts`.
+  - The active journal is not in the URL; it lives in `src/lib/activeJournal.ts` (persisted in `meta`).
 
 ## Testing notes
 
@@ -59,7 +65,8 @@ There is no automated test suite. Verify behaviour in the browser.
   - When the pane is hidden, `requestAnimationFrame` pauses. Exit animations freeze and screenshots go stale, so don't mistake this for an app bug.
 - To test migrations or a fresh seed, delete the `valuation-journal` IndexedDB database in the test browser only.
   - Never do this to the user's real data without asking.
-- Check the console for errors after each flow.
+- Check the console for errors after each flow. Errors logged during hot reloads of half-finished edits are not app bugs; re-check after a clean reload.
+- Backups: the ZIP format can be checked outside the browser by running `src/lib/zip.ts` under Node (`node --experimental-strip-types`) and testing its output with Python's `zipfile`.
 
 ## Documentation upkeep
 

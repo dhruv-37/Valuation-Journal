@@ -1,18 +1,13 @@
 import { useDeferredValue, useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowRight, FilePlus, Search, Upload, X } from 'lucide-react';
-import { db } from '../../db/database';
 import { DOCUMENT_KINDS, type DocumentKind, type ID, type Phase, type ResearchDocument } from '../../types';
 import { useDocumentTextMatches, useDocuments } from '../../hooks/useJournalData';
 import { DOCUMENT_KIND_META, SUPPORTED_FORMATS_LABEL } from '../../lib/documents';
-import { DEFAULT_JOURNAL_ID } from '../../lib/id';
 import { phaseNumber } from '../../lib/format';
 import { tokenize } from '../../lib/search';
-import { router } from '../../hooks/useHashRoute';
-import { BrandMark } from '../BrandMark';
-import { MainNav } from '../MainNav';
-import { ThemeToggle } from '../ThemeToggle';
-import { Button, Kbd } from '../ui/Button';
+import { useActiveJournal } from '../../hooks/useActiveJournal';
+import { Button } from '../ui/Button';
+import { AppHeader } from '../AppHeader';
 import { Select } from '../ui/Select';
 import { DropOverlay } from '../library/DropOverlay';
 import { useDocumentActions } from './DocumentsContext';
@@ -47,7 +42,7 @@ interface DocumentLibraryPageProps {
 /** Every document in the journal, searchable (including text inside files) and organised by phase. */
 export function DocumentLibraryPage({ phases, onOpenPhase, onSearch, covered }: DocumentLibraryPageProps) {
   const documents = useDocuments();
-  const journal = useLiveQuery(() => db.journals.get(DEFAULT_JOURNAL_ID), []);
+  const journal = useActiveJournal();
   const actions = useDocumentActions();
 
   const [query, setQuery] = useState('');
@@ -118,29 +113,7 @@ export function DocumentLibraryPage({ phases, onOpenPhase, onSearch, covered }: 
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-20 border-b border-line/70 bg-canvas/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between gap-3 px-4 sm:px-8">
-          <button type="button" onClick={router.toPathway} className="shrink-0 rounded-lg" title="Pathway overview">
-            <BrandMark />
-          </button>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <MainNav current="documents" documentCount={all.length} />
-            <button
-              type="button"
-              onClick={onSearch}
-              aria-label="Search journal"
-              className="flex size-9 items-center justify-center gap-2 rounded-xl border border-line bg-surface text-muted shadow-card transition-colors hover:border-line-strong hover:text-ink lg:w-auto lg:px-3"
-            >
-              <Search className="size-4" />
-              <span className="hidden items-center gap-0.5 lg:flex">
-                <Kbd>Ctrl</Kbd>
-                <Kbd>K</Kbd>
-              </span>
-            </button>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+      <AppHeader current="documents" documentCount={all.length} onSearch={onSearch} />
 
       <main className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-8">
         <section className="grid items-end gap-8 py-10 sm:py-14 lg:grid-cols-[minmax(0,1fr)_auto]">

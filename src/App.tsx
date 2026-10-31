@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { ID, Phase } from './types';
 import { useDocuments, useLastVisitedPhaseId, usePhases, usePhaseStats } from './hooks/useJournalData';
 import { router, useRoutePage, useRoutePhaseId, type PageRoute } from './hooks/useHashRoute';
@@ -16,8 +16,11 @@ import { isDialogOpen } from './components/ui/Modal';
 import { RecallPage } from './components/recall/RecallPage';
 import { RecallSession, type RecallSessionState } from './components/recall/RecallSession';
 import type { RecallItem } from './hooks/useJournalData';
+import { useActiveJournalId } from './hooks/useActiveJournal';
+import { JournalsProvider } from './components/journals/JournalsProvider';
 
 export default function App() {
+  const journalId = useActiveJournalId();
   const phases = usePhases();
   const stats = usePhaseStats();
   const documents = useDocuments();
@@ -94,13 +97,22 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  if (!phases) {
+  if (!phases || !journalId) {
     return <div className="min-h-dvh bg-canvas" aria-busy="true" />;
   }
 
   return (
+    <JournalsProvider>
     <DocumentsProvider phases={phases} onNavigate={navigate}>
-      <div inert={!!activeId} aria-hidden={!!activeId}>
+      {/* Keyed by journal: switching journals fades the page in afresh. */}
+      <motion.div
+        key={journalId}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        inert={!!activeId}
+        aria-hidden={!!activeId}
+      >
         {page === 'documents' ? (
           <DocumentLibraryPage phases={phases} onOpenPhase={openPhase} onSearch={() => setSearchOpen(true)} covered={!!activeId} />
         ) : page === 'recall' ? (
@@ -123,7 +135,7 @@ export default function App() {
             onSearch={() => setSearchOpen(true)}
           />
         )}
-      </div>
+      </motion.div>
 
       <AnimatePresence custom={lastActiveId.current}>
         {activeId && (
@@ -153,5 +165,6 @@ export default function App() {
       <RecallSession state={session} phases={phases} onClose={() => setSession(null)} onRestart={setSession} onOpenSource={openRecallSource} />
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} phases={phases} onSelect={navigate} />
     </DocumentsProvider>
+    </JournalsProvider>
   );
 }

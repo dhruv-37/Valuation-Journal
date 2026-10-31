@@ -1,15 +1,16 @@
 # Project Context: Valuation Journal
 
-_Last updated: 2026-10-31, after Milestone 4 (Recall & Revision)._
+_Last updated: 2026-10-31, after Milestone 5 (Multiple journals, templates and backups)._
 
 ## 0. Resuming work (read this first)
 
-- **Current state:** Milestones 1–4 are complete and verified. No work is in progress and no change is half-finished.
-- **Plan agreed with the user (2026-10-31):** Milestone 4 Recall & Revision (done) → Milestone 5 Multiple journals, templates and ZIP backups → Milestone 6 Product refinement and finalisation. The brief for 5 and 6 is summarised in §9. Do them in order; finish, document and commit each before starting the next.
-- **Next:** Milestone 5.
+- **Current state:** Milestones 1–5 are complete and verified. No work is in progress and no change is half-finished.
+- **Plan agreed with the user (2026-10-31):** Milestone 4 Recall & Revision (done) → Milestone 5 Multiple journals, templates and ZIP backups (done) → Milestone 6 Product refinement and finalisation. The brief for 6 is summarised in §9. Finish, document and commit each milestone before starting the next.
+- **Next:** Milestone 6.
 - **Before starting a milestone:** read CLAUDE.md, this file and DEVELOPMENT_LOG.md; run `npm run build` to confirm a clean baseline.
 - **Checkpoints:** git was initialised on 2026-10-31 (branch `main`, no remote). The first commit is the checkpoint after Milestone 3; everything before it is recorded only in DEVELOPMENT_LOG.md. End each milestone with a checkpoint commit after the docs are updated.
-- **Test browser:** the in-app browser's database holds test data (see the end of DEVELOPMENT_LOG.md), not a fresh seed. The user's real data in their own browser has never been touched.
+- **Test browser:** the in-app browser's database holds test data (see the end of DEVELOPMENT_LOG.md), not a fresh seed. The user's real data in their own browser has never been touched. A cache named `vj-test-stash` in the test browser holds a test backup ZIP.
+- **Journals:** every query must be scoped to the active journal (see §4, "Journals"). This is the rule most likely to be broken by new code.
 
 ## 1. What it is
 
@@ -21,6 +22,8 @@ A personal, local-first workspace for learning and documenting the DCF valuation
   - A library of image snapshots and text extracts
   - A Documents tab: the phase's research file (PDF, Office, CSV, text, Markdown, images)
 - A central Document Library page lists every document, organised by phase.
+- Recall turns cards and extracts into flashcards with spaced repetition.
+- Several journals (research projects) can exist side by side, each fully separate; whole journals can be created from a template, duplicated, exported to a ZIP backup and restored.
 - All data, images and documents included, lives in the browser's IndexedDB. There is no server, no account, no sync and no cloud viewer.
 
 ## 2. Status
@@ -31,11 +34,11 @@ A personal, local-first workspace for learning and documenting the DCF valuation
 | 2: Visual Knowledge Library | Snapshot library, image viewer, important extracts, filters, schema v2 | Done; manually verified, including the v1 → v2 migration |
 | 3: Document Management | Document attachments, PDF.js viewer, Document Library page, document ↔ knowledge connections, text search inside files, schema v3 | Done; manually verified, including the v2 → v3 migration (see §6) |
 | 4: Recall & Revision | Revision cards linked to cards/extracts, Leitner-style scheduling, Recall dashboard (`#/recall`), session overlay, filters, schema v4 | Done; verified in the browser, including the v3 → v4 migration |
-| 5 | Multiple journals, templates, ZIP backup and restore | Next (see §9) |
-| 6 | Product refinement and finalisation | After 5 |
+| 5: Journals, templates, backups | Journal switcher, create (DCF template / copy / empty), rename, duplicate, delete; query scoping per journal; ZIP backup and restore with validation; no schema change | Done; verified in the browser, including a restore onto a freshly created database |
+| 6 | Product refinement and finalisation | Next |
 
-The production build (`npm run build`) is clean (re-run 2026-10-31 after Milestone 4).
-- The main JS bundle is ≈ 735 kB (≈ 223 kB gzip; warning limit 800 kB). The main CSS is ≈ 69 kB.
+The production build (`npm run build`) is clean (re-run 2026-10-31 after Milestone 5).
+- The main JS bundle is ≈ 758 kB (≈ 229 kB gzip; warning limit 800 kB). The main CSS is ≈ 70 kB. The backup code (`BackupDialog` + `lib/backup.ts` + `lib/zip.ts`) is a separate ≈ 25 kB chunk loaded when Backup & restore is first opened.
 - PDF.js loads on demand in separate chunks: library ≈ 430 kB, `pdf_viewer` ≈ 169 kB, the app's `PdfViewer` component ≈ 11 kB, worker ≈ 1.26 MB, viewer CSS ≈ 230 kB.
 - `dist/pdfjs/` holds the cmaps, standard fonts, wasm decoders (`openjpeg`, `jbig2`, `qcms`) and ICC profiles. It also holds `quickjs-eval.wasm` (≈ 469 kB), which the plugin copies with the rest of the `wasm` folder; the app never loads it because scripting is disabled.
 
@@ -60,9 +63,10 @@ Only one value is stored in localStorage: the theme preference (`vj-theme`), rea
 
 ```
 main.tsx       StrictMode > MotionConfig > ToastProvider > ConfirmProvider > App
-App.tsx        phases + stats, hash route, global shortcuts (Ctrl/Cmd+K, /),
-               DocumentsProvider > [Overview | DocumentLibraryPage], AnimatePresence > PhaseLayer,
-               phase dialogs, SearchPalette
+App.tsx        active journal, phases + stats, hash route, global shortcuts (Ctrl/Cmd+K, /),
+               JournalsProvider > DocumentsProvider > motion.div keyed by journal >
+               [Overview | DocumentLibraryPage | RecallPage], AnimatePresence > PhaseLayer,
+               phase dialogs, RecallSession, SearchPalette
 ```
 
 - **Data flow:**
@@ -71,6 +75,17 @@ App.tsx        phases + stats, hash route, global shortcuts (Ctrl/Cmd+K, /),
 - **Routing:** `#/` (overview), `#/documents` (Document Library), `#/recall` (Recall) and `#/phase/<id>`. This lives in `hooks/useHashRoute.ts`: `useSyncExternalStore`, a custom `vj:route` event, and `router.openPhase / switchPhase / toOverview(fallback) / toDocuments / toPathway`. `history.scrollRestoration = 'manual'`.
   - The page under an open phase is the last full page visited (`basePage` in `App`), so a phase opened from the Document Library closes back to it, and its back button reads "Documents".
   - `MainNav` (Pathway / Documents / Recall, with a due-count badge) sits in the page headers; the phase header has a Document Library icon.
+- **Journals:** `lib/activeJournal.ts`, `hooks/useActiveJournal.ts`, `db/bundle.ts`, `components/journals/`.
+  - **Active journal:** a module store (like the router) holding the id, persisted in `meta.activeJournalId` and loaded once at startup (falls back to `'default'`, then the oldest journal). `getActiveJournalId()` is read synchronously by repository writes; `useActiveJournalId()` / `useActiveJournal()` / `useJournals()` are the hooks. `App` renders nothing until it has loaded.
+  - **Ownership and scoping:** phases carry `journalId`; checklists, cards, snapshots, extracts and phase-owned attachments belong to a journal through their phase; documents, revisions and review logs carry `journalId`; document files are found through their document. **Every read is scoped**: `journalPhaseIds(journalId)` + `where('phaseId').anyOf(...)` for phase-owned tables, `where('journalId')` for the rest (hooks in `useJournalData.ts`, `SearchPalette`, `CardPicker`, `DocumentEditorDialog`, `DocumentLinkDialog`, `AddToRecallDialog`). New phases and unfiled documents go into the active journal; filed documents into their phase's journal; revision cards into their source's journal.
+  - **Per-journal meta:** `lastPhaseId:<journalId>` (the old shared `lastPhaseId` key is still read for the `'default'` journal).
+  - **Whole-journal operations** live in `db/bundle.ts` and are called only through `repository.ts`: `collectJournal` (one read transaction into a `JournalBundle`), `remapBundle` (new id for every record, every reference rewritten; references to missing records dropped; records that can't exist without them, e.g. a snapshot without its image, left out and counted), `writeBundle`, `deleteJournalRecords`, `countJournal`. `JOURNAL_TABLES` is the table list for their transactions.
+  - **Repository:** `createJournal(input, {kind: 'dcf' | 'empty' | 'copy'})` (DCF uses `buildStarterJournal` from `seed.ts` with fresh ids; copy = collect → remap → write), `updateJournal`, `deleteJournal` (refuses the last journal), `importJournalBundle(bundle, {mode: 'new', name} | {mode: 'replace', journalId})` (replace deletes and writes in one transaction, keeping the journal id), `uniqueJournalName` ("Name (2)").
+  - **UI:** `AppHeader` (shared by the three pages) holds `JournalSwitcher` (brand mark + journal name; popover joins `overlayStack`, arrow keys move between journals). `JournalsProvider` owns `JournalFormDialog` (new with template choice / rename), `ManageJournalsDialog` and the lazily loaded `BackupDialog`, and exposes `useJournalActions()` (`switchTo`, `create`, `rename`, `duplicate`, `remove`, `manage`, `backup`). Switching fades the page in (`motion.div` keyed by journal id). The phase breadcrumb shows the journal name.
+- **Backups:** `lib/zip.ts` and `lib/backup.ts`.
+  - **ZIP** (no dependency): files are *stored*, JSON is *deflated* with `CompressionStream('deflate-raw')`. The archive is a Blob assembled from parts, so files are never copied into JS memory; CRC-32 is computed by streaming. Reading uses only the central directory, returns entries as slices of the File, inflates with `DecompressionStream`, and checks size and CRC-32. No ZIP64 (4 GB / 65,535 entries), no encryption; both are refused with a message.
+  - **Format v1:** `manifest.json` (`format: 'valuation-journal-backup'`, `version`, `schemaVersion` = Dexie `verno`, `createdAt`, journals with counts); `journals/<n>/journal.json` (the bundle; Blob fields replaced by `{"$file": path, "type"}`); `journals/<n>/files/<attachmentId>`; `journals/<n>/thumbs/s-<id>` and `d-<id>`.
+  - **Restore:** `readBackup` validates (ZIP structure, manifest, format, version ≤ 1, each `journal.json` parses and passes CRC, every referenced file present) and type-checks every record (`sanitize`), counting malformed ones. A journal with a problem is marked and can't be selected; others still can. `loadBackupJournal` then reads every file with CRC verification *before* the database transaction (IndexedDB transactions can't wait on file reads), and `importJournalBundle` writes it with fresh ids. Replace needs a danger confirmation naming the journal; a storage pre-check compares the files' size with the free quota.
 - **Recall:** `components/recall/`.
   - `RecallPage` (dashboard, filters, list) and `RecallSession` (full-window overlay at z 46 that joins `overlayStack`; rendered by `App`, so a session sits above any page and "Open in the journal" can navigate).
   - A revision card stores only the link (`sourceType`, `sourceId`), an optional question and the schedule. `useRecallItems()` joins each with its card or extract on every read, so edits show at once.
@@ -126,7 +141,8 @@ Defined in `src/db/database.ts`; types in `src/types.ts`. Dexie version *n* is s
 
 v2, v3 and v4 only add tables, so none needs an `.upgrade()`. All records except `meta` and `documentTexts` carry `createdAt` and `updatedAt` (epoch ms).
 
-- **Journal:** `id, name, description`. Only `'default'` (`DEFAULT_JOURNAL_ID`, named "DCF Valuation") exists; there is no UI for multiple journals.
+- **Journal:** `id, name, description`. The first journal has id `'default'` (`DEFAULT_JOURNAL_ID`, named "DCF Valuation" by the seed); others get uuids. Names are kept unique ("Name (2)").
+- **No schema change in Milestone 5:** `phases.journalId`, `documents.journalId`, `revisions.journalId` and `reviewLog.journalId` were already indexed, and everything else belongs to a phase, so journals needed no new table or index.
 - **Phase:** `id, journalId, order, title, description, objectives: string[]`. Displayed numbers come from `order`.
 - **ChecklistItem:** `id, phaseId, text, done, order, completedAt?`.
 - **KnowledgeCard:** `id, phaseId, type, title, content, tags, pinned, order, source?`. `type` is one of `concept | formula | assumption | important | warning | example | decision | source`.
@@ -147,7 +163,7 @@ v2, v3 and v4 only add tables, so none needs an `.upgrade()`. All records except
   - Document attachments use `phaseId: ''`, so the phase-delete cascade (`attachments.where('phaseId')`) never removes document files.
 - **RevisionCard** (`revisions`): `id, journalId, sourceType ('card'|'extract'), sourceId, prompt, status ('new'|'remembered'|'needs-revision'), level, reviewCount, lapses, lastReviewedAt?, dueAt`. `journalId` is taken from the source's phase when the card is added.
 - **ReviewLogEntry** (`reviewLog`): `id, revisionId, journalId, reviewedAt, result, before` (the schedule fields before the review, for exact undo).
-- **MetaEntry:** `key, value`. The only key in use is `lastPhaseId`.
+- **MetaEntry:** `key, value`. Keys: `activeJournalId`, `lastPhaseId:<journalId>`, and the legacy `lastPhaseId` (read only for `'default'`).
 
 **Seeding:** `db/seed.ts` runs only in Dexie's `populate` event, i.e. once, when the database is first created. A fresh install has 13 phases, 78 checklist tasks, 37 knowledge cards and 2 extracts (on Free Cash Flow and Terminal Value). There are no seeded snapshots or documents.
 
@@ -173,6 +189,7 @@ The 13 seeded phases are:
 - **Extract:** deletes its revision card and log, unlinks it from documents (in one transaction).
 - **Remove from Recall:** deletes the revision card and its log only.
 - **Document:** deletes its attachment and its `documentTexts` row.
+- **Journal:** deletes its phases and everything they own, its documents with their files and texts, its revision cards and logs, and its meta keys, in one transaction over `JOURNAL_TABLES`. The last journal can't be deleted; deleting the open journal switches to another first.
 
 ## 6. Implemented features (verified manually)
 
@@ -252,6 +269,27 @@ The 13 seeded phases are:
 
 **Not verified in Milestone 4:** screenshots of the session animations (the pane was hidden, which pauses animation frames; state was checked through the DOM and the database instead).
 
+**Milestone 5**
+- **Journal switcher** in every page header: brand mark, "Valuation Journal" and the journal name; the list shows each journal with its phase count and description, plus New journal, Manage journals, Backup & restore. Keyboard: arrows, Esc.
+- **New journal:** name, description, start from the DCF template (13 phases, checklists, starter cards and extracts), an existing journal (independent copy, files included) or an empty workspace. Opens the new journal.
+- **Manage journals:** each journal's counts (phases, cards, library items, documents, Recall, file size) and creation date; Open, Rename, Duplicate (with a confirmation that lists what will be copied), Export backup, Delete (danger confirmation listing everything that will be deleted and suggesting a backup).
+- **Backup & restore:** Export tab (choose journals, size estimate, progress, saved file name); Restore tab (choose a .zip, validation, per-journal choice of Import as a new journal / Replace the matching journal / Skip, notes about name clashes, malformed records and missing files, storage check, progress, a result toast; opens the first restored journal).
+- **Isolation:** overview stats, Resume, the Document Library, Recall (and its nav badge), search (including text inside files), tag suggestions, card/document/extract/snapshot pickers all show only the open journal.
+
+**Verification done at the end of Milestone 5** (in-app browser, plus Node and Python for the ZIP format):
+- **Existing data:** the Milestone 4 test database opened unchanged as the "DCF Valuation" journal (no schema change, no upgrade).
+- **Create:** "Trent Limited Valuation" from the DCF template (13 phases, 0/78 tasks, 39 items, no Resume); its Documents and Recall pages were empty and search found neither the other journal's extract nor text inside its PDFs. "Cost of Capital Reference" from Empty; a phase added through the UI and a dropped TXT landed in that journal (unfiled, indexed) and global search found the text there but not from Trent.
+- **Duplicate:** the 13-phase journal with 10 documents, 3 snapshots, 8 revision cards and 2 review logs copied with identical counts and bytes. An integrity script over all tables found 0 problems: every reference resolves inside its own journal, no id is shared between journals, no orphan files.
+- **Rename** (to "Fastenal Valuation"), **delete** (of the open journal: switched first, every record and file removed, totals back to the previous state, 0 orphans), **reload** (the open journal persisted), **per-journal Resume** and the journal name in the phase breadcrumb.
+- **Export:** 3 journals → a 130 KB ZIP, downloaded with the expected name. Independently, the same `zip.ts` run under Node produced an archive that Python's `zipfile.testzip()` passed (deflated JSON with UTF-8 text, a 3 MB stored binary, a 1-byte entry); it also read a Python-made archive (deflate, stored, Unicode names), and caught a flipped byte (checksum) and a truncated file.
+- **Restore:** Import as new ("DCF Valuation (2)", identical counts; all 10 document files SHA-256-identical to the originals; thumbnails present); Replace (confirmation shown; a marker card added beforehand was gone and the counts matched the backup); a damaged file inside an otherwise valid archive failed its checksum at restore time with a clear message and nothing written; random bytes, a truncated file, a ZIP without manifest, a newer format (9), invalid JSON and missing files each gave a specific message.
+- **Fresh install and full restore:** after exporting 4 journals and deleting the test database, a fresh load seeded correctly through the refactored seed (version 40; 13 phases, 78 tasks, 37 cards, 2 extracts). Restoring the 4 journals onto it gave identical counts, 0 integrity problems, a PDF that renders all 5 pages, and the Recall schedule intact (8 cards, 2 remembered, 6 due).
+- **Layout:** no horizontal overflow at 375 px on the three pages; the switcher popover fits (16–326 px). A first version let the journal name run under the nav icons on phones; fixed (see the log).
+- **Console:** a clean load walking every page, the journal dialogs, a switch and a phase produced no errors.
+- **Build:** clean.
+
+**Not verified in Milestone 5:** a backup near the 4 GB limit or with 200 MB files (the code paths are the same streaming ones tested with 3 MB); a real saved download and real file chooser (both driven programmatically through the same handlers); restoring in a different browser.
+
 ## 7. Key files
 
 | Path | Role |
@@ -261,17 +299,22 @@ The 13 seeded phases are:
 | `vite.config.ts` | React, Tailwind and PDF.js asset plugins |
 | `src/types.ts` | Domain model and constant lists (`CARD_TYPES`, `EXTRACT_KINDS`, `DOCUMENT_KINDS`) |
 | `src/db/database.ts` | Dexie schema and versions |
-| `src/db/seed.ts` | Starter DCF content (first launch only) |
+| `src/db/seed.ts` | Starter DCF content: `buildStarterJournal` (fresh ids each call), written by `populate` on first launch and by the DCF template |
 | `src/db/repository.ts` | Every write operation, including `addDocument`, `updateDocument`, `deleteDocument`, `setItemDocuments`, `saveDocumentDigest` |
 | `src/hooks/useJournalData.ts` | `useRecallItems`, `useSourceRevision`, `useDueRevisionCount`, `usePhases`, `usePhaseStats`, `usePhaseDetail`, `useLastVisitedPhaseId`, `useAllTags`, `useDocuments`, `useDocument`, `usePhaseDocuments`, `useItemDocuments`, `useAttachmentBlob`, `useDocumentTextMatches` |
 | `src/hooks/useBlobUrl.ts` | Object-URL lifecycle and `downloadBlob` |
 | `src/hooks/useHashRoute.ts`, `useTheme.ts` | Routing; theme store |
 | `src/lib/recall.ts` | Spaced-repetition schedule: `nextSchedule`, `isDue`, `relativeDue`, `intervalLabel` |
+| `src/lib/activeJournal.ts`, `src/hooks/useActiveJournal.ts` | Active journal store; `useActiveJournalId`, `useActiveJournal`, `useJournals` |
+| `src/db/bundle.ts` | Whole-journal collect / remap / write / delete / count |
+| `src/lib/zip.ts`, `src/lib/backup.ts` | ZIP writer and reader; backup format, export, validation, restore loading |
+| `src/components/AppHeader.tsx` | Page header: journal switcher, main nav, search, theme |
+| `src/components/journals/` | `JournalsContext`, `JournalsProvider`, `JournalSwitcher`, `JournalFormDialog`, `ManageJournalsDialog`, `BackupDialog` |
 | `src/hooks/useNow.ts` | Minute clock for due counts |
 | `src/components/recall/` | `RecallPage`, `RecallSession`, `Flashcard`, `RevisionRow`, `RecallStatusPill`, `AddToRecallDialog`, `PromptDialog`, `RecallToggle`, `RecallBadge`, `recallItems.ts` (prompt/answer/reference helpers, filters, ordering) |
 | `src/lib/` | `images.ts`, `documents.ts` (formats and limits: `MAX_DOCUMENT_BYTES` 200 MB, `LARGE_DOCUMENT_BYTES` 25 MB, `MAX_INDEXED_CHARS` 750,000, `MAX_TEXT_PREVIEW_BYTES` 5 MB), `documentProcessing.ts`, `pdf.ts`, `csv.ts`, `markdown.ts`, `search.ts`, `format.ts`, `cardTypes.ts`, `extractKinds.ts`, `id.ts` |
 | `src/components/MainNav.tsx` | Pathway / Documents / Recall switch |
-| `src/components/BrandMark.tsx`, `ThemeToggle.tsx` | Header logo; light/dark switch |
+| `src/components/BrandMark.tsx`, `ThemeToggle.tsx` | Logo (phase header); light/dark switch |
 | `src/components/overview/` | `Overview`, `PhasePathway`, `PhaseNode` |
 | `src/components/workspace/` | `PhaseLayer`, `PhaseWorkspace`, `PhaseHeader`, `ObjectivesPanel`, `ChecklistPanel`, `JournalPanel`, `KnowledgeCardView`, `CardEditorDialog`, `Panel` |
 | `src/components/library/` | `LibraryContext`, `LibraryPanel`, `LibraryFilters`, `libraryFilter`, `SnapshotTile`, `SnapshotThumb`, `SnapshotEditorDialog`, `CardPicker`, `ImageViewer`, `ExtractView`, `ExtractEditorDialog`, `DropOverlay` |
@@ -304,7 +347,10 @@ Git was set up only after Milestone 3, so this list is taken from the session re
 ## 8. Known limitations and open issues
 
 - **Recall:** a card with no title shows the first line of its content as the question, which then repeats in the answer; set a question with the pencil icon. Only cards and extracts can be revision cards (not snapshots or documents). The interval shown on an already-rated card you go back to reflects its new schedule.
-- **No backup, export or import.** Data exists only in one browser profile, and documents make this riskier: clearing site data deletes the files too. This is the biggest risk.
+- **Backups are manual.** Data lives in one browser profile; clearing site data deletes it, files included. The user must export ZIP backups and keep them elsewhere; nothing reminds them yet.
+- **Backup limits:** no ZIP64, so one archive must stay under 4 GB and 65,535 files (export journals separately if needed). The whole backup's JSON and each restored journal are processed in memory (files are not, except deflated ones from other tools). Restoring the same backup twice as "new" makes two journals ("Name (2)"): by design, since ids are always regenerated.
+- **Restored documents still `pending`** (exported mid-indexing) are indexed on the next launch, not immediately.
+- **Phone header:** the journal name is truncated to a few characters at 375 px; the full name is in the switcher list.
 - **No in-app preview for Excel, Word and PowerPoint**, by design (no reliable local renderer without new dependencies or a cloud viewer). Their text is not indexed for search either. A text-only `.docx`/`.xlsx` extractor using the browser's `DecompressionStream` would be possible later.
 - **Scanned PDFs** without a text layer can be viewed but not searched (no OCR).
 - **Search inside files** scans every stored text on each (deferred) query. That is fine for dozens of documents; with hundreds of long filings it may feel slow and would need an index.
@@ -314,7 +360,6 @@ Git was set up only after Milestone 3, so this list is taken from the session re
 - **No pinch-to-zoom** in the image viewer on touch screens (not tested on a real touch device). PDF.js has its own pinch support, also untested.
 - Images can't be dropped onto a specific card; dropping anywhere adds a phase snapshot. A card's "attach image" button links an upload to that card.
 - Tasks and cards can't be reordered in the UI (the `order` fields exist). There is no rich text or Markdown in card content.
-- There is only one journal (`'default'`). The `journals` table and `documents.journalId` exist for future use.
 - The image viewer's `hidden sm:inline-flex` pin/edit buttons stay visible on phones (the `IconButton`-style base class wins). The document viewer uses `max-sm:hidden` instead. Pre-existing and harmless.
 - There are no automated tests; verification is manual in the browser.
 - Git history starts at the Milestone 3 checkpoint; earlier history exists only in DEVELOPMENT_LOG.md. There is no remote, so the repository is not backed up off this machine.
@@ -323,12 +368,6 @@ Git was set up only after Milestone 3, so this list is taken from the session re
 
 ## 9. Next steps (agreed plan)
 
-**Milestone 5: Multiple journals, templates and backups** (next):
-- Create, rename, duplicate, switch and delete journals. Each journal fully owns its phases (and order), checklists, cards, snapshots, extracts, documents and attachments, tags and revision records; nothing editable is shared.
-- New journal from the default DCF template, an existing journal (independent copies, files included) or an empty workspace.
-- ZIP backup (everything above, blobs included, with history and schedules) and restore: archive validation, backup-version check, choose journals before importing, import as new, replace only after explicit confirmation, preserve relationships, no duplicates or broken references, handle corrupt archives and large files, use transactions.
-- A polished journal switcher in the existing visual style.
+**Milestone 6: Refinement and finalisation** (next): review every screen (overview, phases, cards, snapshot library and image viewer, Document Library and PDF viewer, search, Recall, journal switcher, backup dialogs) for typography, spacing, hierarchy and consistency in both themes and at 375 px; refine animations (zoom, phase navigation, cards, modals, viewers, journal switching, revision) with reduced motion respected; re-check data integrity (isolation, attachments, links, search, scheduling, ZIP round trip, migrations, persistence); performance (large image collections, PDF, search, lazy loading, keep the main bundle under 800 kB); build; final docs and handover.
 
-**Milestone 6: Refinement and finalisation:** review every screen (typography, spacing, hierarchy, both themes, 375 px), animations (zoom, navigation, cards, modals, viewers, journal switching, revision) with reduced motion respected, data-integrity checks (isolation, attachments, links, search, scheduling, ZIP round trip, migrations, persistence), performance (large image collections, PDF, search, lazy loading, bundle under 800 kB), build and docs.
-
-**Later candidates:** "save selection as extract" from the PDF viewer, `.docx`/`.xlsx` text indexing, PDF outline and thumbnails, pinch-zoom, drop an image onto a card, reorder tasks and cards, Markdown in cards. Outstanding Milestone 3 checks in a normal browser: viewer full screen, real file chooser and saved download, real Office files, password-protected and scanned PDFs, a large filing, `npm run preview`.
+**Later candidates:** a backup reminder; "save selection as extract" from the PDF viewer; `.docx`/`.xlsx` text indexing; PDF outline and thumbnails; pinch-zoom; drop an image onto a card; reorder tasks and cards; Markdown in cards; moving or copying single items between journals. Outstanding Milestone 3 checks in a normal browser: viewer full screen, real file chooser and saved download, real Office files, password-protected and scanned PDFs, a large filing, `npm run preview`.

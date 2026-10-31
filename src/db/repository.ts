@@ -1,5 +1,8 @@
 import { db } from './database';
-import { DEFAULT_JOURNAL_ID, uid } from '../lib/id';
+import { uid } from '../lib/id';
+import { getActiveJournalId } from '../lib/activeJournal';
+import { JOURNAL_TABLES, collectJournal, deleteJournalRecords, remapBundle, writeBundle } from './bundle';
+import { buildStarterJournal } from './seed';
 import { prepareImage } from '../lib/images';
 import { normaliseUrl } from '../lib/format';
 import { formatBytes } from '../lib/images';
@@ -19,6 +22,8 @@ import type {
   DocumentTextStatus,
   ExtractKind,
   ID,
+  Journal,
+  JournalBundle,
   KnowledgeCard,
   KnowledgeExtract,
   Phase,
@@ -40,16 +45,19 @@ const now = () => Date.now();
 
 /* ---------------------------------- Phases --------------------------------- */
 
-async function orderedPhaseIds(): Promise<ID[]> {
-  const phases = await db.phases.where('journalId').equals(DEFAULT_JOURNAL_ID).sortBy('order');
+async function orderedPhaseIds(journalId: ID): Promise<ID[]> {
+  const phases = await db.phases.where('journalId').equals(journalId).sortBy('order');
   return phases.map((p) => p.id);
 }
 
+/** New phases go into the journal on screen. */
+
 export async function createPhase(input: { title: string; description?: string; objectives?: string[] }) {
-  const ids = await orderedPhaseIds();
+  const journalId = getActiveJournalId();
+  const ids = await orderedPhaseIds(journalId);
   const phase: Phase = {
     id: uid(),
-    journalId: DEFAULT_JOURNAL_ID,
+    journalId,
     order: ids.length,
     title: input.title.trim() || 'Untitled phase',
     description: input.description?.trim() ?? '',
@@ -72,6 +80,8 @@ export async function updatePhase(id: ID, changes: Partial<Pick<Phase, 'title' |
 export async function deletePhase(id: ID) {
   const tables = [db.phases, db.checklist, db.cards, db.attachments, db.snapshots, db.extracts, db.documents, db.revisions, db.reviewLog];
   await db.transaction('rw', tables, async () => {
+    const phase = await db.phases.get(id);
+    if (!phase) return;
     const [cardIds, snapshotIds, extractIds] = (await Promise.all([
       db.cards.where('phaseId').equals(id).primaryKeys(),
       db.snapshots.where('phaseId').equals(id).primaryKeys(),
@@ -87,7 +97,7 @@ export async function deletePhase(id: ID) {
     await db.extracts.where('phaseId').equals(id).delete();
     await db.attachments.where('phaseId').equals(id).delete();
     await db.phases.delete(id);
-    const remaining = await orderedPhaseIds();
+    const remaining = await orderedPhaseIds(phase.journalId);
     await writePhaseOrder(remaining);
   });
 }
@@ -102,7 +112,9 @@ export async function reorderPhases(ids: ID[]) {
 
 export async function movePhase(id: ID, delta: -1 | 1) {
   await db.transaction('rw', db.phases, async () => {
-    const ids = await orderedPhaseIds();
+    const phase = await db.phases.get(id);
+    if (!phase) return;
+    const ids = await orderedPhaseIds(phase.journalId);
     const from = ids.indexOf(id);
     const to = from + delta;
     if (from < 0 || to < 0 || to >= ids.length) return;
@@ -366,6 +378,8 @@ export async function addDocument(file: File, target: DocumentTarget): Promise<R
   }
 
   const meta = DOCUMENT_KIND_META[detected.kind];
+  // A filed document belongs to its phase's journal; an unfiled one to the journal on screen.
+  const journalId = (target.phaseId && (await db.phases.get(target.phaseId))?.journalId) || getActiveJournalId();
   const attachmentId = uid();
   const documentId = uid();
   const stamp = now();
@@ -387,7 +401,7 @@ export async function addDocument(file: File, target: DocumentTarget): Promise<R
   };
   const document: ResearchDocument = {
     id: documentId,
-    journalId: DEFAULT_JOURNAL_ID,
+    journalId,
     phaseId: target.phaseId,
     attachmentId,
     title: defaultDocumentTitle(name),
@@ -615,6 +629,96 @@ async function removeRevisionsOf(sourceType: RevisionSourceType, sourceIds: ID[]
 
 /* ----------------------------------- Meta ----------------------------------- */
 
+/** Remembers the last phase opened, per journal (for "Resume" on the overview). */
 export async function setLastVisitedPhase(id: ID) {
-  await db.meta.put({ key: 'lastPhaseId', value: id });
+  const phase = await db.phases.get(id);
+  if (phase) await db.meta.put({ key: `lastPhaseId:${phase.journalId}`, value: id });
+}
+
+/* --------------------------------- Journals --------------------------------- */
+
+export type JournalTemplate = { kind: 'dcf' } | { kind: 'empty' } | { kind: 'copy'; journalId: ID };
+
+export interface JournalInput {
+  name: string;
+  description: string;
+}
+
+/** A name not used by another journal: "Name", else "Name (2)", "Name (3)"… */
+export async function uniqueJournalName(name: string, exceptId?: ID): Promise<string> {
+  const base = name.trim() || 'Untitled journal';
+  const taken = new Set((await db.journals.toArray()).filter((j) => j.id !== exceptId).map((j) => j.name.toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; ; n++) if (!taken.has(`${base} (${n})`.toLowerCase())) return `${base} (${n})`;
+}
+
+/**
+ * Creates a journal from the starter DCF template, as an empty workspace, or as
+ * an independent copy of another journal (every record and file duplicated
+ * with new ids). Returns the new journal.
+ */
+export async function createJournal(input: JournalInput, template: JournalTemplate): Promise<Journal> {
+  const stamp = now();
+  const journal: Journal = { id: uid(), name: await uniqueJournalName(input.name), description: input.description.trim(), createdAt: stamp, updatedAt: stamp };
+
+  if (template.kind === 'copy') {
+    // Read first, then write: the copy is made from one consistent read.
+    const source = await collectJournal(template.journalId);
+    const { bundle } = remapBundle(source, journal);
+    await db.transaction('rw', JOURNAL_TABLES, () => writeBundle(bundle));
+    return journal;
+  }
+
+  await db.transaction('rw', [db.journals, db.phases, db.checklist, db.cards, db.extracts], async () => {
+    await db.journals.add(journal);
+    if (template.kind === 'dcf') {
+      const starter = buildStarterJournal(journal.id, journal);
+      await db.phases.bulkAdd(starter.phases);
+      await db.checklist.bulkAdd(starter.tasks);
+      await db.cards.bulkAdd(starter.cards);
+      await db.extracts.bulkAdd(starter.extracts);
+    }
+  });
+  return journal;
+}
+
+export async function updateJournal(id: ID, input: JournalInput) {
+  await db.journals.update(id, { name: await uniqueJournalName(input.name, id), description: input.description.trim(), updatedAt: now() });
+}
+
+/**
+ * Permanently deletes a journal and everything it owns, files included, in one
+ * transaction. The last remaining journal cannot be deleted.
+ */
+export async function deleteJournal(id: ID) {
+  await db.transaction('rw', JOURNAL_TABLES, async () => {
+    if ((await db.journals.count()) <= 1) throw new Error('The last journal cannot be deleted.');
+    await deleteJournalRecords(id);
+  });
+}
+
+export type BundleImport = { mode: 'new'; name: string } | { mode: 'replace'; journalId: ID };
+
+/**
+ * Writes a journal from a backup. "new" adds it as a separate journal; "replace"
+ * swaps the contents of an existing journal for the backup's, keeping its id.
+ * Ids are always regenerated, so nothing collides with records already here.
+ * Returns the journal and how many broken records were left out.
+ */
+export async function importJournalBundle(source: JournalBundle, target: BundleImport): Promise<{ journal: Journal; dropped: number }> {
+  const stamp = now();
+  return db.transaction('rw', JOURNAL_TABLES, async () => {
+    let journal: Journal;
+    if (target.mode === 'replace') {
+      const existing = await db.journals.get(target.journalId);
+      if (!existing) throw new Error('The journal to replace no longer exists.');
+      journal = { ...existing, name: source.journal.name || existing.name, description: source.journal.description, updatedAt: stamp };
+      await deleteJournalRecords(existing.id, { keepJournal: true });
+    } else {
+      journal = { id: uid(), name: await uniqueJournalName(target.name), description: source.journal.description, createdAt: source.journal.createdAt || stamp, updatedAt: stamp };
+    }
+    const { bundle, dropped } = remapBundle(source, journal);
+    await writeBundle(bundle);
+    return { journal, dropped };
+  });
 }

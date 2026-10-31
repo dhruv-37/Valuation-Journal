@@ -1,5 +1,5 @@
 import type { Transaction } from 'dexie';
-import type { CardType, ChecklistItem, ExtractKind, Journal, KnowledgeCard, KnowledgeExtract, Phase } from '../types';
+import type { CardType, ChecklistItem, ExtractKind, ID, Journal, KnowledgeCard, KnowledgeExtract, Phase } from '../types';
 import { DEFAULT_JOURNAL_ID, uid } from '../lib/id';
 
 interface SeedCard {
@@ -550,16 +550,26 @@ export const SEED_PHASES: SeedPhase[] = [
 ];
 
 
-/** Writes the starter journal inside Dexie's 'populate' transaction. */
-export function seedDatabase(tx: Transaction) {
+/** Records of a starter DCF journal: 13 phases with tasks, cards and extracts. */
+export interface StarterJournal {
+  journal: Journal;
+  phases: Phase[];
+  tasks: ChecklistItem[];
+  cards: KnowledgeCard[];
+  extracts: KnowledgeExtract[];
+}
+
+/**
+ * Builds the starter DCF content for a journal. Used once by the 'populate'
+ * event for the first journal, and again whenever a journal is created from the
+ * DCF template (always with fresh ids).
+ */
+export function buildStarterJournal(
+  journalId: ID,
+  details: { name: string; description: string } = { name: 'DCF Valuation', description: 'Discounted cash flow valuation workflow' },
+): StarterJournal {
   const now = Date.now();
-  const journal: Journal = {
-    id: DEFAULT_JOURNAL_ID,
-    name: 'DCF Valuation',
-    description: 'Discounted cash flow valuation workflow',
-    createdAt: now,
-    updatedAt: now,
-  };
+  const journal: Journal = { id: journalId, name: details.name, description: details.description, createdAt: now, updatedAt: now };
 
   const phases: Phase[] = [];
   const tasks: ChecklistItem[] = [];
@@ -570,11 +580,11 @@ export function seedDatabase(tx: Transaction) {
     const phaseId = uid();
     phases.push({
       id: phaseId,
-      journalId: DEFAULT_JOURNAL_ID,
+      journalId,
       order: phaseIndex,
       title: seed.title,
       description: seed.description,
-      objectives: seed.objectives,
+      objectives: [...seed.objectives],
       createdAt: now,
       updatedAt: now,
     });
@@ -588,7 +598,7 @@ export function seedDatabase(tx: Transaction) {
         type: card.type,
         title: card.title,
         content: card.content,
-        tags: card.tags,
+        tags: [...card.tags],
         pinned: card.pinned ?? false,
         order: i,
         source: card.source,
@@ -597,10 +607,16 @@ export function seedDatabase(tx: Transaction) {
       }),
     );
     seed.extracts?.forEach((extract) =>
-      extracts.push({ id: uid(), phaseId, pinned: false, ...extract, createdAt: now, updatedAt: now }),
+      extracts.push({ id: uid(), phaseId, pinned: false, ...extract, tags: [...extract.tags], createdAt: now, updatedAt: now }),
     );
   });
 
+  return { journal, phases, tasks, cards, extracts };
+}
+
+/** Writes the starter journal inside Dexie's 'populate' transaction. */
+export function seedDatabase(tx: Transaction) {
+  const { journal, phases, tasks, cards, extracts } = buildStarterJournal(DEFAULT_JOURNAL_ID);
   tx.table('journals').add(journal);
   tx.table('phases').bulkAdd(phases);
   tx.table('checklist').bulkAdd(tasks);

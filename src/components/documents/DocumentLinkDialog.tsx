@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Upload } from 'lucide-react';
+import { useActiveJournalId } from '../../hooks/useActiveJournal';
 import { db } from '../../db/database';
 import type { ID, Phase, ResearchDocument } from '../../types';
 import { setItemDocuments } from '../../db/repository';
@@ -25,11 +26,15 @@ const NOUN = { card: 'card', extract: 'extract', snapshot: 'snapshot', phase: 'p
 
 /** Choose which library documents are connected to a card, extract, snapshot or phase. */
 export function DocumentLinkDialog({ target, phases, onClose, onUpload }: DocumentLinkDialogProps) {
+  const journalId = useActiveJournalId();
   const data = useLiveQuery(async () => {
-    if (!target) return null;
-    const [documents, linked] = await Promise.all([db.documents.toArray(), db.documents.where(FIELD[target.kind]).equals(target.id).primaryKeys()]);
+    if (!target || !journalId) return null;
+    const [documents, linked] = await Promise.all([
+      db.documents.where('journalId').equals(journalId).toArray(),
+      db.documents.where(FIELD[target.kind]).equals(target.id).primaryKeys(),
+    ]);
     return { documents, linked: linked as ID[] };
-  }, [target?.kind, target?.id]);
+  }, [target?.kind, target?.id, journalId]);
 
   return (
     <Modal open={!!target} onClose={onClose} title="Connected documents" labelledBy="document-link-title" width="max-w-xl">

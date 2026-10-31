@@ -41,7 +41,7 @@ function AddBody({ phases, onClose }: { phases: Phase[]; onClose: () => void }) 
     const [cards, extracts, revisions] = await Promise.all([
       db.cards.where('phaseId').anyOf(phaseIds).toArray(),
       db.extracts.where('phaseId').anyOf(phaseIds).toArray(),
-      db.revisions.toArray(),
+      db.revisions.where('journalId').equals(phases[0]?.journalId ?? '').toArray(),
     ]);
     return { cards, extracts, inRecall: new Set(revisions.map((r) => `${r.sourceType}:${r.sourceId}`)) };
   }, [phaseIds.join()]);

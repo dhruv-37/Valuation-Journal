@@ -233,3 +233,35 @@ The user asked for Milestones 4–6 in one brief (Recall; multiple journals, tem
 **Not verified:** visual screenshots of the session animations (the pane was hidden, which pauses animation frames).
 
 **Test browser state:** the in-app database is now at version 40, with 8 revision cards and 2 review-log entries added to the Milestone 3 test data. The card "Illustrative WACC" in phase 07 was deleted during the cascade test.
+
+---
+
+## 2026-10-31: Milestone 5, Multiple journals, templates and backups
+
+**Built:**
+- Multiple independent journals: a switcher in every page header; create (DCF template, copy of an existing journal, empty), rename, duplicate, delete, switch; the open journal is remembered.
+- Every query scoped to the open journal: overview stats and Resume, Document Library, Recall and its badge, search (including text inside files), tag suggestions and all pickers.
+- ZIP backup of any set of journals (records, original files, thumbnails, links, Recall history and schedules) and restore with validation, a per-journal choice (new / replace / skip), confirmation before replacing, a storage check and progress.
+- A shared `AppHeader`; the journal name in the overview eyebrow and phase breadcrumb; an empty-journal message on the overview.
+
+**Decisions**
+- **No schema change.** `phases`, `documents`, `revisions` and `reviewLog` already carried an indexed `journalId`, and every other record belongs to a phase. Scoping reads through the journal's phase ids gives full isolation without migrating any user data. The alternative (adding `journalId` to every table with an upgrade) would have touched every record for no functional gain.
+- **The active journal is a module store, not a route or context.** Repository writes need it synchronously (new phases, unfiled documents), as the router is used. It is persisted in `meta.activeJournalId`. `App` waits for it before rendering.
+- **One bundle format for copy, export and import.** `db/bundle.ts` reads a whole journal in one transaction (`collectJournal`), and `remapBundle` gives every record a new id and rewrites every reference. Duplicating is collect → remap → write; restoring is parse → remap → write. Because ids are always regenerated, a copy or restore can never collide with or share a record with an existing journal, and restoring twice simply makes two journals. References to missing records are dropped and dependent records left out and counted, so a damaged backup can't create broken references.
+- **Replace keeps the journal id** and deletes and writes in one transaction, after a danger confirmation that names the journal.
+- **A small ZIP module instead of JSZip.** The user suggested JSZip; CLAUDE.md asks to avoid new dependencies unless clearly necessary, and JSZip holds whole archives in memory, which matters with 200 MB PDFs. `lib/zip.ts` (≈ 230 lines) builds the archive as a Blob from parts (files are stored, never copied into JS memory; JSON is deflated with the built-in `CompressionStream`), streams CRC-32, and reads by slicing the File with size and CRC checks, inflating with `DecompressionStream`. It was cross-checked against Python's `zipfile` in both directions. Trade-off: no ZIP64 (4 GB limit), refused with a clear message.
+- **Validate everything before writing anything.** Restore reads the manifest and every `journal.json` (with CRC), type-checks each record, and confirms every referenced file exists, before showing choices. Files are then read and checksummed before the database transaction (IndexedDB transactions auto-commit across non-IDB awaits), so a bad file aborts that journal with nothing written.
+- **The backup code is lazy-loaded**, keeping the main bundle at ≈ 758 kB (it reached 782 kB before).
+- **Seed refactor:** `buildStarterJournal(journalId)` returns the starter records with fresh ids; `populate` and the DCF template both use it. The `populate` path is otherwise unchanged.
+- **CLAUDE.md** now records the journal-scoping rule and where whole-journal operations live.
+
+**Bugs found and fixed:**
+- **The journal name ran under the navigation icons on phones.** A `<button>` with `display: flex` sized itself to its content instead of its shrinking container. Fix: `max-w-full` on the switcher button so the name truncates.
+- **A failure message ended with "..".** The reason already ended with a full stop; it is trimmed now. (The first attempt at the fix, made with `sed`, lost the regex escape and would have removed any last character; caught on review and corrected.)
+- **Empty journals said "0 phases from objective to conclusion".** Now: "This journal has no phases yet…".
+
+**Verified** (details in PROJECT_CONTEXT.md §6): the existing database opened unchanged as the first journal; create from each template; isolation of every page and of search; duplicate with identical counts and bytes; an integrity script (every reference within its own journal, no shared ids, no orphans) at 0 problems after each operation; rename, delete of the open journal, reload persistence, per-journal Resume; export; ZIP format cross-checked with Node + Python; restore as new (files SHA-256-identical) and replace (marker gone); damaged, truncated, foreign, newer-format, invalid-JSON and missing-file archives refused with specific messages and nothing written; a fresh install followed by a full restore of 4 journals (PDF renders, Recall schedule intact); 375 px layout; a clean console; build clean.
+
+**Not verified:** very large backups (hundreds of MB, near 4 GB), a real saved download and file chooser, restoring in a different browser.
+
+**Test browser state:** the test database was deleted and recreated during the fresh-install test, then 4 journals were restored into it: "DCF Valuation" (fresh seed), "DCF Valuation (2)" (the old test data: 10 documents, 3 snapshots, 8 revision cards), "Trent Limited Valuation" (DCF template, one phase visited), "Fastenal Valuation" (copy of the old test data) and "Cost of Capital Reference" (1 phase, 1 TXT). The open journal is "Trent Limited Valuation". The `vj-test-stash` cache holds the 4-journal test backup.

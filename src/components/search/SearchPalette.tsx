@@ -8,6 +8,7 @@ import { EXTRACT_KIND_META } from '../../lib/extractKinds';
 import { SnapshotThumb } from '../library/SnapshotThumb';
 import { useDocumentActions } from '../documents/DocumentsContext';
 import { useDocumentTextMatches } from '../../hooks/useJournalData';
+import { useActiveJournalId } from '../../hooks/useActiveJournal';
 import { DOCUMENT_KIND_META } from '../../lib/documents';
 import { highlight, search, tokenize, type SearchResult } from '../../lib/search';
 import { CARD_TYPE_META } from '../../lib/cardTypes';
@@ -49,16 +50,20 @@ function SearchBody({ phases, onSelect, onClose }: { phases: Phase[]; onSelect: 
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const journalId = useActiveJournalId();
+  // Only the active journal is searched; its records hang off its phases.
+  const phaseKey = phases.map((p) => p.id).join();
   const data = useLiveQuery(async () => {
+    const phaseIds = phases.map((p) => p.id);
     const [tasks, cards, snapshots, extracts, documents] = await Promise.all([
-      db.checklist.toArray(),
-      db.cards.toArray(),
-      db.snapshots.toArray(),
-      db.extracts.toArray(),
-      db.documents.toArray(),
+      db.checklist.where('phaseId').anyOf(phaseIds).toArray(),
+      db.cards.where('phaseId').anyOf(phaseIds).toArray(),
+      db.snapshots.where('phaseId').anyOf(phaseIds).toArray(),
+      db.extracts.where('phaseId').anyOf(phaseIds).toArray(),
+      journalId ? db.documents.where('journalId').equals(journalId).toArray() : [],
     ]);
     return { tasks, cards, snapshots, extracts, documents };
-  }, []);
+  }, [phaseKey, journalId]);
   // Scanning document text is the slow part, so it follows typing with a short lag.
   const textHits = useDocumentTextMatches(useDeferredValue(query));
   const documents = useDocumentActions();

@@ -1,11 +1,10 @@
-import { ArrowRight, Search, Settings2 } from 'lucide-react';
+import { ArrowRight, Settings2 } from 'lucide-react';
 import type { ID, Phase, PhaseStats } from '../../types';
 import { percent, phaseNumber } from '../../lib/format';
-import { Button, Kbd } from '../ui/Button';
+import { Button } from '../ui/Button';
+import { AppHeader } from '../AppHeader';
+import { useActiveJournal } from '../../hooks/useActiveJournal';
 import { ProgressBar } from '../ui/ProgressBar';
-import { ThemeToggle } from '../ThemeToggle';
-import { BrandMark } from '../BrandMark';
-import { MainNav } from '../MainNav';
 import { PhasePathway } from './PhasePathway';
 
 interface OverviewProps {
@@ -21,6 +20,7 @@ interface OverviewProps {
 }
 
 export function Overview({ phases, stats, documentCount, lastVisitedId, onOpenPhase, onAddPhase, onManage, onSearch }: OverviewProps) {
+  const journal = useActiveJournal();
   let tasks = 0;
   let done = 0;
   let cards = 0;
@@ -40,38 +40,19 @@ export function Overview({ phases, stats, documentCount, lastVisitedId, onOpenPh
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-20 border-b border-line/70 bg-canvas/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between gap-4 px-4 sm:px-8">
-          <BrandMark />
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <MainNav current="overview" documentCount={documentCount} />
-            <button
-              type="button"
-              onClick={onSearch}
-              className="flex h-9 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-sm text-muted shadow-card transition-colors hover:border-line-strong hover:text-ink lg:w-64"
-            >
-              <Search className="size-4" />
-              <span className="hidden flex-1 text-left lg:inline">Search journal…</span>
-              <span className="hidden items-center gap-0.5 lg:flex">
-                <Kbd>Ctrl</Kbd>
-                <Kbd>K</Kbd>
-              </span>
-            </button>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+      <AppHeader current="overview" documentCount={documentCount} onSearch={onSearch} />
 
       <main className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-8">
         <section className="grid items-end gap-10 py-10 sm:py-14 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div>
-            <p className="text-[11px] font-semibold tracking-[0.2em] text-gold uppercase">Discounted cash flow · Workflow</p>
+            <p className="truncate text-[11px] font-semibold tracking-[0.2em] text-gold uppercase">{journal?.name ?? 'Journal'} · Workflow</p>
             <h1 className="mt-3 font-display text-[40px] leading-[1.05] font-medium tracking-tight text-ink sm:text-[52px]">
               The valuation pathway
             </h1>
             <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted">
-              {phases.length} {phases.length === 1 ? 'phase' : 'phases'} from objective to conclusion. Open a phase to work through
-              its checklist and the knowledge you have collected along the way.
+              {phases.length === 0
+                ? 'This journal has no phases yet. Add the first one below to start building your own workflow.'
+                : `${phases.length} ${phases.length === 1 ? 'phase' : 'phases'} from objective to conclusion. Open a phase to work through its checklist and the knowledge you have collected along the way.`}
             </p>
             {resumeIndex >= 0 && (
               <Button

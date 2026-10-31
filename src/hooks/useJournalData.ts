@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
 import { DEFAULT_JOURNAL_ID } from '../lib/id';
 import { useNow } from './useNow';
+import { useActiveJournalId } from './useActiveJournal';
 import { isDue } from '../lib/recall';
 import { excerpt, tokenize } from '../lib/search';
 import type {
@@ -17,22 +18,34 @@ import type {
   Snapshot,
 } from '../types';
 
-/** All phases of the journal, in pathway order. `undefined` while loading. */
-export function usePhases() {
-  return useLiveQuery(() => db.phases.where('journalId').equals(DEFAULT_JOURNAL_ID).sortBy('order'), []);
+/**
+ * Ids of a journal's phases. Checklists, cards, snapshots and extracts belong to
+ * a journal through their phase, so this is how their queries are scoped.
+ */
+export async function journalPhaseIds(journalId: ID): Promise<ID[]> {
+  return (await db.phases.where('journalId').equals(journalId).primaryKeys()) as ID[];
 }
 
-/** Task / card / library counts per phase, for the overview. */
+/** All phases of the active journal, in pathway order. `undefined` while loading. */
+export function usePhases() {
+  const journalId = useActiveJournalId();
+  return useLiveQuery(async () => (journalId ? db.phases.where('journalId').equals(journalId).sortBy('order') : undefined), [journalId]);
+}
+
+/** Task / card / library counts per phase of the active journal, for the overview. */
 export function usePhaseStats() {
+  const journalId = useActiveJournalId();
   return useLiveQuery(async () => {
+    if (!journalId) return undefined;
+    const phaseIds = await journalPhaseIds(journalId);
     // Index keys only for snapshots/extracts/documents: avoids loading thumbnails just to count them.
     const [tasks, cards, snapshotPhaseIds, extractPhaseIds, documentPhaseIds, documentLinkedPhaseIds] = await Promise.all([
-      db.checklist.toArray(),
-      db.cards.toArray(),
-      db.snapshots.orderBy('phaseId').keys(),
-      db.extracts.orderBy('phaseId').keys(),
-      db.documents.orderBy('phaseId').keys(),
-      db.documents.orderBy('linkedPhaseIds').keys(),
+      db.checklist.where('phaseId').anyOf(phaseIds).toArray(),
+      db.cards.where('phaseId').anyOf(phaseIds).toArray(),
+      db.snapshots.where('phaseId').anyOf(phaseIds).keys(),
+      db.extracts.where('phaseId').anyOf(phaseIds).keys(),
+      db.documents.where('phaseId').anyOf(phaseIds).keys(),
+      db.documents.where('linkedPhaseIds').anyOf(phaseIds).keys(),
     ]);
     const stats = new Map<ID, PhaseStats>();
     const get = (id: ID) => {
@@ -55,7 +68,7 @@ export function usePhaseStats() {
     // Unfiled documents have no phaseId and so are not in the index.
     for (const id of [...documentPhaseIds, ...documentLinkedPhaseIds]) get(id as ID).documents++;
     return stats;
-  }, []);
+  }, [journalId]);
 }
 
 export function sortCards(cards: KnowledgeCard[]) {
@@ -102,22 +115,33 @@ export function usePhaseDetail(phaseId: ID | null) {
   }, [phaseId]);
 }
 
+/** Last phase opened in the active journal (each journal remembers its own). */
 export function useLastVisitedPhaseId() {
-  return useLiveQuery(async () => (await db.meta.get('lastPhaseId'))?.value as ID | undefined, []);
+  const journalId = useActiveJournalId();
+  return useLiveQuery(async () => {
+    if (!journalId) return undefined;
+    const own = (await db.meta.get(`lastPhaseId:${journalId}`))?.value as ID | undefined;
+    // Before Milestone 5 there was one journal and one shared key.
+    if (own || journalId !== DEFAULT_JOURNAL_ID) return own;
+    return (await db.meta.get('lastPhaseId'))?.value as ID | undefined;
+  }, [journalId]);
 }
 
-/** Every tag in use across cards, snapshots, extracts and documents, for suggestions. */
+/** Every tag in use across the active journal's cards, snapshots, extracts and documents, for suggestions. */
 export function useAllTags() {
+  const journalId = useActiveJournalId();
   return (
     useLiveQuery(async () => {
-      const lists = await Promise.all([
-        db.cards.orderBy('tags').uniqueKeys(),
-        db.snapshots.orderBy('tags').uniqueKeys(),
-        db.extracts.orderBy('tags').uniqueKeys(),
-        db.documents.orderBy('tags').uniqueKeys(),
+      if (!journalId) return [];
+      const phaseIds = await journalPhaseIds(journalId);
+      const [cards, snapshots, extracts, documents] = await Promise.all([
+        db.cards.where('phaseId').anyOf(phaseIds).toArray(),
+        db.snapshots.where('phaseId').anyOf(phaseIds).toArray(),
+        db.extracts.where('phaseId').anyOf(phaseIds).toArray(),
+        db.documents.where('journalId').equals(journalId).toArray(),
       ]);
-      return Array.from(new Set(lists.flat() as string[])).sort();
-    }, []) ?? []
+      return Array.from(new Set([...cards, ...snapshots, ...extracts, ...documents].flatMap((r) => r.tags))).sort();
+    }, [journalId]) ?? []
   );
 }
 
@@ -125,9 +149,13 @@ export function useAllTags() {
 
 const newestFirst = (a: ResearchDocument, b: ResearchDocument) => b.createdAt - a.createdAt;
 
-/** Every document in the journal, newest first. `undefined` while loading. */
+/** Every document in the active journal, newest first. `undefined` while loading. */
 export function useDocuments() {
-  return useLiveQuery(async () => (await db.documents.where('journalId').equals(DEFAULT_JOURNAL_ID).toArray()).sort(newestFirst), []);
+  const journalId = useActiveJournalId();
+  return useLiveQuery(
+    async () => (journalId ? (await db.documents.where('journalId').equals(journalId).toArray()).sort(newestFirst) : undefined),
+    [journalId],
+  );
 }
 
 export function useDocument(id: ID | null) {
@@ -151,16 +179,21 @@ export function usePhaseDocuments(phaseId: ID) {
  * a deferred query.
  */
 export function useDocumentTextMatches(query: string) {
+  const journalId = useActiveJournalId();
   return useLiveQuery(async () => {
     const tokens = tokenize(query);
     const hits = new Map<ID, string>();
-    if (tokens.length === 0) return hits;
-    await db.documentTexts.each((entry) => {
+    if (tokens.length === 0 || !journalId) return hits;
+    // Only this journal's texts are read.
+    const ids = (await db.documents.where('journalId').equals(journalId).primaryKeys()) as ID[];
+    const texts = await db.documentTexts.bulkGet(ids);
+    for (const entry of texts) {
+      if (!entry) continue;
       const lower = entry.text.toLowerCase();
       if (tokens.every((t) => lower.includes(t))) hits.set(entry.documentId, excerpt(entry.text, tokens));
-    });
+    }
     return hits;
-  }, [query]);
+  }, [query, journalId]);
 }
 
 /** The stored file behind a document or snapshot. */
@@ -185,10 +218,12 @@ export interface RecallItem {
   pinned: boolean;
 }
 
-/** Every revision card of the journal with its source. `undefined` while loading. */
+/** Every revision card of the active journal with its source. `undefined` while loading. */
 export function useRecallItems() {
+  const journalId = useActiveJournalId();
   return useLiveQuery(async () => {
-    const revisions = await db.revisions.where('journalId').equals(DEFAULT_JOURNAL_ID).toArray();
+    if (!journalId) return undefined;
+    const revisions = await db.revisions.where('journalId').equals(journalId).toArray();
     const cardIds = revisions.filter((r) => r.sourceType === 'card').map((r) => r.sourceId);
     const extractIds = revisions.filter((r) => r.sourceType === 'extract').map((r) => r.sourceId);
     const [cards, extracts] = await Promise.all([db.cards.bulkGet(cardIds), db.extracts.bulkGet(extractIds)]);
@@ -204,7 +239,7 @@ export function useRecallItems() {
       items.push({ revision, card, extract, phaseId: source.phaseId, pinned: source.pinned });
     }
     return items;
-  }, []);
+  }, [journalId]);
 }
 
 /** The revision card made from one card or extract, or null when it is not in Recall. */
@@ -215,5 +250,6 @@ export function useSourceRevision(sourceType: RevisionSourceType, sourceId: ID) 
 /** Number of revision cards due now, for the main navigation badge. Re-checked every minute. */
 export function useDueRevisionCount() {
   const now = useNow();
-  return useLiveQuery(() => db.revisions.where('journalId').equals(DEFAULT_JOURNAL_ID).filter((r) => isDue(r)).count(), [now]);
+  const journalId = useActiveJournalId();
+  return useLiveQuery(async () => (journalId ? db.revisions.where('journalId').equals(journalId).filter((r) => isDue(r)).count() : 0), [now, journalId]);
 }
