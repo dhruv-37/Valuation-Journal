@@ -326,3 +326,11 @@ The user asked for Milestones 4–6 in one brief (Recall; multiple journals, tem
 **Not verified:** a real saved download; the hourly refresh of the age while the page stays open.
 
 **Test browser state:** the dev server ran on port 5174 (5173 was taken by another session), so these tests used that origin's own database: the "DCF Valuation" seed with one added TXT document (`wacc-notes.txt`, whose content was replaced by a restore-replace from its own copy) and `lastBackupAt:default` set to 42 days ago. The port 5173 test database was not touched.
+
+---
+
+## 2026-10-31: Published to GitHub
+
+- At the user's request, created the **public** repository `dhruv-37/Valuation-Journal` (GitHub does not allow spaces, so "Valuation Journal" became `Valuation-Journal`) and pushed `main` with its full history (Milestone 3 checkpoint through the backup reminder).
+- Checked before publishing: only source, config and docs are tracked (`node_modules` and `dist` are ignored); no secrets or user data.
+- No application code changed.

@@ -8,7 +8,7 @@ _Last updated: 2026-10-31, after the backup reminder (a small follow-up to Miles
 - **Plan agreed with the user (2026-10-31):** Milestones 4 (Recall), 5 (journals and backups) and 6 (refinement) were done in order, each documented and committed.
 - **Next:** nothing is scheduled. Candidates and outstanding manual checks are in §9; the user chooses.
 - **Before starting a milestone:** read CLAUDE.md, this file and DEVELOPMENT_LOG.md; run `npm run build` to confirm a clean baseline.
-- **Checkpoints:** git was initialised on 2026-10-31 (branch `main`, no remote). The first commit is the checkpoint after Milestone 3; everything before it is recorded only in DEVELOPMENT_LOG.md. End each milestone with a checkpoint commit after the docs are updated.
+- **Checkpoints:** git was initialised on 2026-10-31 (branch `main`). Since 2026-10-31 the remote `origin` is the **public** GitHub repository https://github.com/dhruv-37/Valuation-Journal; push only when the user asks. The first commit is the checkpoint after Milestone 3; everything before it is recorded only in DEVELOPMENT_LOG.md. End each milestone with a checkpoint commit after the docs are updated.
 - **Test browser:** the in-app browser's database holds test data (see the end of DEVELOPMENT_LOG.md), not a fresh seed. The user's real data in their own browser has never been touched. A cache named `vj-test-stash` in the test browser holds a test backup ZIP. The dev server's port decides the origin and so the database: the backup reminder was tested on port 5174 (a separate small seeded database), not 5173.
 - **Journals:** every query must be scoped to the active journal (see §4, "Journals"). This is the rule most likely to be broken by new code.
 
@@ -395,7 +395,7 @@ Git was set up only after Milestone 3, so this list is taken from the session re
 - Images can't be dropped onto a specific card; dropping anywhere adds a phase snapshot. A card's "attach image" button links an upload to that card.
 - Tasks and cards can't be reordered in the UI (the `order` fields exist). There is no rich text or Markdown in card content.
 - There are no automated tests; verification is manual in the browser.
-- Git history starts at the Milestone 3 checkpoint; earlier history exists only in DEVELOPMENT_LOG.md. There is no remote, so the repository is not backed up off this machine.
+- Git history starts at the Milestone 3 checkpoint; earlier history exists only in DEVELOPMENT_LOG.md. The code is on GitHub (public: `dhruv-37/Valuation-Journal`); user data is never in the repository.
 - Bundle: the entry plus vendor chunk is ≈ 694 kB before gzip. New pages should be `lazy` like the Document Library and Recall pages.
 - Only Chromium has been used for testing (the in-app browser); Firefox and Safari are untested. `CompressionStream`/`DecompressionStream` (backups) need Firefox 113+ / Safari 16.4+.
 - `dist/pdfjs/wasm/` ships `quickjs-eval.wasm` (≈ 469 kB) that is never used. The asset plugin could skip it; harmless for a local app.
