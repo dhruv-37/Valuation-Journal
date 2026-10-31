@@ -1,0 +1,170 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/newsreader';
+@import '@fontsource-variable/jetbrains-mono';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens. Components use semantic names (canvas, surface, ink, gold…)
+   so light and dark themes are switched here only.
+--------------------------------------------------------------------------- */
+:root {
+  --canvas: #f6f4ef;
+  --surface: #fffefb;
+  --surface-2: #f1eee7;
+  --line: #e4dfd4;
+  --line-strong: #d3ccbe;
+  --ink: #1f1e1b;
+  --ink-2: #4a4741;
+  --muted: #7a756c;
+  --faint: #a39d92;
+  --gold: #a8822f;
+  --gold-strong: #8c6a22;
+  --gold-soft: #f3ead6;
+  --on-gold: #fffdf7;
+  --shadow: 31 30 27;
+
+  --type-concept: #5b6573;
+  --type-formula: #a8822f;
+  --type-assumption: #4f6d8a;
+  --type-important: #a0612a;
+  --type-warning: #a4443b;
+  --type-example: #5e7a5a;
+  --type-decision: #74587a;
+  --type-source: #7d6b55;
+  color-scheme: light;
+}
+
+.dark {
+  --canvas: #12110f;
+  --surface: #1a1917;
+  --surface-2: #22201d;
+  --line: #2d2a26;
+  --line-strong: #3b3833;
+  --ink: #ece8e1;
+  --ink-2: #c6c1b8;
+  --muted: #958f85;
+  --faint: #6c675f;
+  --gold: #d0aa55;
+  --gold-strong: #e0bd6c;
+  --gold-soft: #2b2518;
+  --on-gold: #17150f;
+  --shadow: 0 0 0;
+
+  --type-concept: #9ba5b3;
+  --type-formula: #d0aa55;
+  --type-assumption: #8fa9c4;
+  --type-important: #d59a64;
+  --type-warning: #d9776d;
+  --type-example: #93b08e;
+  --type-decision: #b59abb;
+  --type-source: #b8a58c;
+  color-scheme: dark;
+}
+
+/* The PDF viewer's stylesheet (loaded on demand) sets `:root { color-scheme: light dark }`.
+   These more specific rules keep form controls and scrollbars on the app's own theme. */
+:root:not(.dark) {
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
+}
+
+/* PDF viewer: pages sit on the app's surface instead of the default grey. */
+.vj-pdf {
+  --page-margin: 12px auto;
+  --page-border: none;
+}
+.vj-pdf .pdfViewer .page {
+  box-shadow: 0 8px 24px -10px rgb(var(--shadow) / 0.28), 0 1px 3px rgb(var(--shadow) / 0.08);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-gold: var(--gold);
+  --color-gold-strong: var(--gold-strong);
+  --color-gold-soft: var(--gold-soft);
+  --color-on-gold: var(--on-gold);
+
+  --color-type-concept: var(--type-concept);
+  --color-type-formula: var(--type-formula);
+  --color-type-assumption: var(--type-assumption);
+  --color-type-important: var(--type-important);
+  --color-type-warning: var(--type-warning);
+  --color-type-example: var(--type-example);
+  --color-type-decision: var(--type-decision);
+  --color-type-source: var(--type-source);
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --shadow-card: 0 1px 2px rgb(var(--shadow) / 0.04), 0 1px 1px rgb(var(--shadow) / 0.03);
+  --shadow-lift: 0 10px 30px -12px rgb(var(--shadow) / 0.18), 0 2px 6px rgb(var(--shadow) / 0.05);
+  --shadow-float: 0 24px 60px -20px rgb(var(--shadow) / 0.35), 0 4px 12px rgb(var(--shadow) / 0.08);
+}
+
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-canvas font-sans text-ink;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--gold) 28%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Brief highlight when search jumps to an item. */
+@keyframes vj-flash {
+  0%, 60% { box-shadow: 0 0 0 2px var(--gold), 0 0 0 7px color-mix(in oklab, var(--gold) 22%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.vj-flash {
+  animation: vj-flash 2.2s ease-out;
+}
+
+/* Hover-revealed controls stay visible on touch devices. */
+@media (hover: hover) {
+  .reveal-on-hover {
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  .group:hover .reveal-on-hover,
+  .group:focus-within .reveal-on-hover {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
