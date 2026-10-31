@@ -300,3 +300,29 @@ The user asked for Milestones 4–6 in one brief (Recall; multiple journals, tem
 **Not verified:** the reduced-motion transition (cannot be emulated in the in-app browser), touch devices, Firefox and Safari.
 
 **Test browser state:** unchanged from Milestone 5 apart from one more review in "DCF Valuation (2)" (a Remembered rating). The preview server's origin (port 4173) holds a separate small test database: the seed, one PDF and a restored copy.
+
+---
+
+## 2026-10-31: Backup reminder (follow-up to Milestone 6)
+
+**Changed:**
+- **Export records the date.** After a successful export, `ExportPanel` calls the new `recordBackupExport(journalIds)` in `repository.ts`, which writes `meta['lastBackupAt:<journalId>'] = epoch ms` for each exported journal.
+- **Overview notice.** `overview/BackupReminder.tsx` (read through the new `useLastBackupAt()` hook) shows a small pill under the overview description: "Last backup 42 days ago · Back up now" when the open journal's last export is over 30 days old, or "No backup of this journal yet · Back up now" when it was never exported and has documents or snapshots. "Back up now" opens Backup & restore through `useJournalActions().backup()`.
+- **Journal deletion** also removes the journal's `lastBackupAt` key (`deleteJournalRecords`, only when the journal itself is deleted).
+- README, PROJECT_CONTEXT.md updated.
+
+**Decisions**
+- **One key per journal, not one global key.** The brief suggested a single `lastBackupAt` key with the exported journal ids. With a single key, exporting journal B would overwrite the record for journal A, so A's reminder would reset or disappear wrongly. Per-journal keys follow the existing `lastPhaseId:<journalId>` pattern, and the journal ids are encoded in the keys. No schema change (`meta` is key/value).
+- **Restoring never counts.** Only `ExportPanel` writes the key. The key is not part of a `JournalBundle`, so restored and duplicated journals start without one (a restored journal with files shows "No backup of this journal yet"). Replacing a journal from a backup keeps its existing date, because that export did happen; deleting a journal removes it.
+- **A failed write of the date is ignored.** By then the ZIP has already been handed to the browser; reporting "The backup could not be created" would be false. The worst case is that the reminder shows again.
+- **"Back up now" ticks every journal** (`backup()` with no ids), so one export covers everything and clears every journal's reminder. Preselecting only the open journal would leave the others unprotected.
+- **Restrained styling:** a pill in `surface` with `line` border and `shadow-card`, muted text, a gold archive icon and a gold link; no new colours. It sits under the description/Resume button, so it doesn't compete with the stats. The text truncates rather than wraps so the rounded pill keeps its shape at 375 px.
+- **No dismiss or snooze** for now: the notice is small, and it disappears after one export. Listed as a smaller candidate in §9.
+
+**Bugs found and fixed:** none.
+
+**Verified** (in-app browser, dev server on port 5174, a fresh seeded database on that origin): no notice on a fresh seed; notice appears live after adding a document; "Back up now" → Export writes `lastBackupAt:default` and hides the notice; 42 days ago shows "Last backup 42 days ago", 29 days hides it; a restore through the dialog (Import as new) writes no date and leaves the original's date unchanged, and the restored journal shows "No backup of this journal yet"; replace keeps the date; switching journals switches the notice; deleting a journal removes its key; light and dark themes; 375 px with no horizontal scroll; no console errors after a clean reload; `npm run build` clean, no size warning (entry ≈ 419 kB).
+
+**Not verified:** a real saved download; the hourly refresh of the age while the page stays open.
+
+**Test browser state:** the dev server ran on port 5174 (5173 was taken by another session), so these tests used that origin's own database: the "DCF Valuation" seed with one added TXT document (`wacc-notes.txt`, whose content was replaced by a restore-replace from its own copy) and `lastBackupAt:default` set to 42 days ago. The port 5173 test database was not touched.

@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Archive, Check, FileArchive, TriangleAlert, Upload } from 'lucide-react';
 import type { ID, Journal, JournalCounts } from '../../types';
 import { countJournal } from '../../db/bundle';
-import { importJournalBundle, type BundleImport } from '../../db/repository';
+import { importJournalBundle, recordBackupExport, type BundleImport } from '../../db/repository';
 import { useJournals } from '../../hooks/useActiveJournal';
 import { downloadBlob } from '../../hooks/useBlobUrl';
 import { BackupError, exportJournals, loadBackupJournal, readBackup, type BackupContents, type BackupJournal } from '../../lib/backup';
@@ -113,6 +113,8 @@ function ExportPanel({ preselected, busy, setBusy }: { preselected?: ID[]; busy:
     try {
       const { blob, fileName } = await exportJournals(ids, (stage, n, total) => setProgress({ label: `${stage}… ${n} of ${total}`, value: percent(n, total) }));
       downloadBlob(`backup:${Date.now()}`, blob, fileName);
+      // The file is already saved; failing to record the date only means the reminder may show again.
+      await recordBackupExport(ids).catch(() => undefined);
       setDone({ fileName, size: blob.size });
       toast({ message: `Backup saved: ${fileName}` });
     } catch (error) {

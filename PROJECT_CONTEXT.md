@@ -1,15 +1,15 @@
 # Project Context: Valuation Journal
 
-_Last updated: 2026-10-31, after Milestone 6 (Refinement and finalisation). All six milestones are complete._
+_Last updated: 2026-10-31, after the backup reminder (a small follow-up to Milestone 6). All six milestones are complete._
 
 ## 0. Resuming work (read this first)
 
-- **Current state:** Milestones 1–6 are complete and verified. No work is in progress and no change is half-finished.
+- **Current state:** Milestones 1–6 and the backup reminder (§9 candidate 1) are complete and verified. No work is in progress and no change is half-finished.
 - **Plan agreed with the user (2026-10-31):** Milestones 4 (Recall), 5 (journals and backups) and 6 (refinement) were done in order, each documented and committed.
 - **Next:** nothing is scheduled. Candidates and outstanding manual checks are in §9; the user chooses.
 - **Before starting a milestone:** read CLAUDE.md, this file and DEVELOPMENT_LOG.md; run `npm run build` to confirm a clean baseline.
 - **Checkpoints:** git was initialised on 2026-10-31 (branch `main`, no remote). The first commit is the checkpoint after Milestone 3; everything before it is recorded only in DEVELOPMENT_LOG.md. End each milestone with a checkpoint commit after the docs are updated.
-- **Test browser:** the in-app browser's database holds test data (see the end of DEVELOPMENT_LOG.md), not a fresh seed. The user's real data in their own browser has never been touched. A cache named `vj-test-stash` in the test browser holds a test backup ZIP.
+- **Test browser:** the in-app browser's database holds test data (see the end of DEVELOPMENT_LOG.md), not a fresh seed. The user's real data in their own browser has never been touched. A cache named `vj-test-stash` in the test browser holds a test backup ZIP. The dev server's port decides the origin and so the database: the backup reminder was tested on port 5174 (a separate small seeded database), not 5173.
 - **Journals:** every query must be scoped to the active journal (see §4, "Journals"). This is the rule most likely to be broken by new code.
 
 ## 1. What it is
@@ -36,9 +36,10 @@ A personal, local-first workspace for learning and documenting the DCF valuation
 | 4: Recall & Revision | Revision cards linked to cards/extracts, Leitner-style scheduling, Recall dashboard (`#/recall`), session overlay, filters, schema v4 | Done; verified in the browser, including the v3 → v4 migration |
 | 5: Journals, templates, backups | Journal switcher, create (DCF template / copy / empty), rename, duplicate, delete; query scoping per journal; ZIP backup and restore with validation; no schema change | Done; verified in the browser, including a restore onto a freshly created database |
 | 6: Refinement and finalisation | Layout fixes at 1024 px and on phones, header and nav breakpoints, reduced-motion phase transition, Recall shortcut in the phase header, lazy-loaded pages, lazy thumbnails, plural labels, production build checked in a browser | Done; verified in the browser (dev and production build) |
+| Follow-up: backup reminder | Export records a per-journal date in `meta`; the overview shows a quiet notice when the open journal was never exported (and holds files) or its last export is over 30 days old; no schema change | Done; verified in the browser (dev server) |
 
-The production build (`npm run build`) is clean with no size warning (re-run 2026-10-31 after Milestone 6).
-- Initial JS: the entry ≈ 423 kB (≈ 125 kB gzip) plus a shared vendor chunk ≈ 271 kB (≈ 90 kB gzip; Rolldown names it `types-*.js` after its first module) and a few small shared chunks. The main CSS is ≈ 71 kB.
+The production build (`npm run build`) is clean with no size warning (re-run 2026-10-31 after the backup reminder).
+- Initial JS: the entry ≈ 419 kB (≈ 125 kB gzip) plus a shared vendor chunk ≈ 271 kB (≈ 90 kB gzip; Rolldown names it `types-*.js` after its first module) and a few small shared chunks. The main CSS is ≈ 71 kB.
 - Loaded on first use: `DocumentLibraryPage` ≈ 10 kB, `RecallPage` ≈ 22 kB, `RecallSession` ≈ 12 kB, `BackupDialog` (with `lib/backup.ts` and `lib/zip.ts`) ≈ 25 kB, and PDF.js as before.
 - PDF.js loads on demand in separate chunks: library ≈ 430 kB, `pdf_viewer` ≈ 169 kB, the app's `PdfViewer` component ≈ 11 kB, worker ≈ 1.26 MB, viewer CSS ≈ 230 kB.
 - `dist/pdfjs/` holds the cmaps, standard fonts, wasm decoders (`openjpeg`, `jbig2`, `qcms`) and ICC profiles. It also holds `quickjs-eval.wasm` (≈ 469 kB), which the plugin copies with the rest of the `wasm` folder; the app never loads it because scripting is disabled.
@@ -79,13 +80,14 @@ App.tsx        active journal, phases + stats, hash route, global shortcuts (Ctr
 - **Journals:** `lib/activeJournal.ts`, `hooks/useActiveJournal.ts`, `db/bundle.ts`, `components/journals/`.
   - **Active journal:** a module store (like the router) holding the id, persisted in `meta.activeJournalId` and loaded once at startup (falls back to `'default'`, then the oldest journal). `getActiveJournalId()` is read synchronously by repository writes; `useActiveJournalId()` / `useActiveJournal()` / `useJournals()` are the hooks. `App` renders nothing until it has loaded.
   - **Ownership and scoping:** phases carry `journalId`; checklists, cards, snapshots, extracts and phase-owned attachments belong to a journal through their phase; documents, revisions and review logs carry `journalId`; document files are found through their document. **Every read is scoped**: `journalPhaseIds(journalId)` + `where('phaseId').anyOf(...)` for phase-owned tables, `where('journalId')` for the rest (hooks in `useJournalData.ts`, `SearchPalette`, `CardPicker`, `DocumentEditorDialog`, `DocumentLinkDialog`, `AddToRecallDialog`). New phases and unfiled documents go into the active journal; filed documents into their phase's journal; revision cards into their source's journal.
-  - **Per-journal meta:** `lastPhaseId:<journalId>` (the old shared `lastPhaseId` key is still read for the `'default'` journal).
+  - **Per-journal meta:** `lastPhaseId:<journalId>` (the old shared `lastPhaseId` key is still read for the `'default'` journal) and `lastBackupAt:<journalId>` (epoch ms of the last export that included the journal; `lastBackupKey()` in `db/bundle.ts`). `lastBackupAt` is not part of a bundle, so copies and restored journals start without one; deleting a journal removes it, replacing a journal from a backup keeps it.
   - **Whole-journal operations** live in `db/bundle.ts` and are called only through `repository.ts`: `collectJournal` (one read transaction into a `JournalBundle`), `remapBundle` (new id for every record, every reference rewritten; references to missing records dropped; records that can't exist without them, e.g. a snapshot without its image, left out and counted), `writeBundle`, `deleteJournalRecords`, `countJournal`. `JOURNAL_TABLES` is the table list for their transactions.
   - **Repository:** `createJournal(input, {kind: 'dcf' | 'empty' | 'copy'})` (DCF uses `buildStarterJournal` from `seed.ts` with fresh ids; copy = collect → remap → write), `updateJournal`, `deleteJournal` (refuses the last journal), `importJournalBundle(bundle, {mode: 'new', name} | {mode: 'replace', journalId})` (replace deletes and writes in one transaction, keeping the journal id), `uniqueJournalName` ("Name (2)").
   - **UI:** `AppHeader` (shared by the three pages) holds `JournalSwitcher` (brand mark + journal name; popover joins `overlayStack`, arrow keys move between journals). `JournalsProvider` owns `JournalFormDialog` (new with template choice / rename), `ManageJournalsDialog` and the lazily loaded `BackupDialog`, and exposes `useJournalActions()` (`switchTo`, `create`, `rename`, `duplicate`, `remove`, `manage`, `backup`). Switching fades the page in (`motion.div` keyed by journal id). The phase breadcrumb shows the journal name.
 - **Backups:** `lib/zip.ts` and `lib/backup.ts`.
   - **ZIP** (no dependency): files are *stored*, JSON is *deflated* with `CompressionStream('deflate-raw')`. The archive is a Blob assembled from parts, so files are never copied into JS memory; CRC-32 is computed by streaming. Reading uses only the central directory, returns entries as slices of the File, inflates with `DecompressionStream`, and checks size and CRC-32. No ZIP64 (4 GB / 65,535 entries), no encryption; both are refused with a message.
   - **Format v1:** `manifest.json` (`format: 'valuation-journal-backup'`, `version`, `schemaVersion` = Dexie `verno`, `createdAt`, journals with counts); `journals/<n>/journal.json` (the bundle; Blob fields replaced by `{"$file": path, "type"}`); `journals/<n>/files/<attachmentId>`; `journals/<n>/thumbs/s-<id>` and `d-<id>`.
+  - **Backup reminder:** after a successful export, `ExportPanel` calls `recordBackupExport(ids)` (repository), which writes `lastBackupAt:<id>` for every exported journal (a failure there is ignored: the file is already saved). Restoring never writes it. `overview/BackupReminder.tsx` reads it through `useLastBackupAt()` and shows "Last backup N days ago · Back up now" when the last export is over 30 days old, or "No backup of this journal yet · Back up now" when there is none and the journal has documents or snapshots. The button calls `useJournalActions().backup()` (all journals ticked). `useNow` refreshes the age hourly and on focus.
   - **Restore:** `readBackup` validates (ZIP structure, manifest, format, version ≤ 1, each `journal.json` parses and passes CRC, every referenced file present) and type-checks every record (`sanitize`), counting malformed ones. A journal with a problem is marked and can't be selected; others still can. `loadBackupJournal` then reads every file with CRC verification *before* the database transaction (IndexedDB transactions can't wait on file reads), and `importJournalBundle` writes it with fresh ids. Replace needs a danger confirmation naming the journal; a storage pre-check compares the files' size with the free quota.
 - **Recall:** `components/recall/`.
   - `RecallPage` (dashboard, filters, list) and `RecallSession` (full-window overlay at z 46 that joins `overlayStack`; rendered by `App`, so a session sits above any page and "Open in the journal" can navigate).
@@ -306,6 +308,18 @@ The 13 seeded phases are:
 - **Integrity:** the script over every table of the 5 test journals found 0 problems.
 - **Build:** clean, no size warning.
 
+**Backup reminder (follow-up to Milestone 6)**
+- A quiet pill under the overview description (gold archive icon, muted text, gold "Back up now" link, `surface`/`line`/`shadow-card`), only for the open journal. It opens Backup & restore with every journal ticked.
+
+**Verification done for the backup reminder** (in-app browser on the dev server, port 5174, so a fresh seeded database on its own origin):
+- Fresh seed (no files, no backup): no notice. After adding a TXT document through the repository: "No backup of this journal yet · Back up now" appeared live.
+- "Back up now" opened Backup & restore; Export backup saved the ZIP, wrote `lastBackupAt:default`, and the notice disappeared.
+- Editing `meta` to 42 days ago showed "Last backup 42 days ago"; 29 days ago hid it; 42 days again showed it.
+- Restore (through the dialog's Restore tab, Import as new): no `lastBackupAt` written; the date of the original journal was unchanged and the restored "DCF Valuation (2)" showed "No backup of this journal yet". Replace (through `importJournalBundle`) kept the replaced journal's date. Switching journals switched the notice. Deleting a journal removed its key.
+- Light and dark themes (screenshots); at 375 px the pill spans 16–303 px with no horizontal scroll. No console errors after a clean reload. Build clean, no size warning.
+
+**Not verified for the backup reminder:** a real saved download (the export was driven in the in-app browser); the hourly refresh of the age while the page stays open.
+
 **Not verified in Milestone 6:** the reduced-motion transition (the in-app browser cannot emulate `prefers-reduced-motion`; the code path is a plain variant swap); touch devices; Firefox and Safari (only Chromium was used throughout).
 
 **Not verified in Milestone 5:** a backup near the 4 GB limit or with 200 MB files (the code paths are the same streaming ones tested with 3 MB); a real saved download and real file chooser (both driven programmatically through the same handlers); restoring in a different browser.
@@ -335,7 +349,7 @@ The 13 seeded phases are:
 | `src/lib/` | `images.ts`, `documents.ts` (formats and limits: `MAX_DOCUMENT_BYTES` 200 MB, `LARGE_DOCUMENT_BYTES` 25 MB, `MAX_INDEXED_CHARS` 750,000, `MAX_TEXT_PREVIEW_BYTES` 5 MB), `documentProcessing.ts`, `pdf.ts`, `csv.ts`, `markdown.ts`, `search.ts`, `format.ts`, `cardTypes.ts`, `extractKinds.ts`, `id.ts` |
 | `src/components/MainNav.tsx` | Pathway / Documents / Recall switch |
 | `src/components/BrandMark.tsx`, `ThemeToggle.tsx` | Logo (phase header); light/dark switch |
-| `src/components/overview/` | `Overview`, `PhasePathway`, `PhaseNode` |
+| `src/components/overview/` | `Overview`, `PhasePathway`, `PhaseNode`, `BackupReminder` |
 | `src/components/workspace/` | `PhaseLayer`, `PhaseWorkspace`, `PhaseHeader`, `ObjectivesPanel`, `ChecklistPanel`, `JournalPanel`, `KnowledgeCardView`, `CardEditorDialog`, `Panel` |
 | `src/components/library/` | `LibraryContext`, `LibraryPanel`, `LibraryFilters`, `libraryFilter`, `SnapshotTile`, `SnapshotThumb`, `SnapshotEditorDialog`, `CardPicker`, `ImageViewer`, `ExtractView`, `ExtractEditorDialog`, `DropOverlay` |
 | `src/components/documents/` | `DocumentsContext`, `DocumentsProvider`, `DocumentLibraryPage`, `PhaseDocumentsPanel`, `DocumentRow`, `DocumentThumb`, `DocumentChips`, `DocumentViewer`, `DocumentInfoPanel`, `DocumentEditorDialog`, `DocumentLinkDialog`, `LinkPicker`, `StoragePanel`, `previews/` (`PdfViewer`, `ImagePreview`, `TextPreview`, `MarkdownView`, `CsvPreview`, `NoPreview`) |
@@ -367,7 +381,7 @@ Git was set up only after Milestone 3, so this list is taken from the session re
 ## 8. Known limitations and open issues
 
 - **Recall:** a card with no title shows the first line of its content as the question, which then repeats in the answer; set a question with the pencil icon. Only cards and extracts can be revision cards (not snapshots or documents). The interval shown on an already-rated card you go back to reflects its new schedule.
-- **Backups are manual.** Data lives in one browser profile; clearing site data deletes it, files included. The user must export ZIP backups and keep them elsewhere; nothing reminds them yet.
+- **Backups are manual.** Data lives in one browser profile; clearing site data deletes it, files included. The user must export ZIP backups and keep them elsewhere. The overview reminds them (never exported with files, or over 30 days), but the app can't tell whether the downloaded file was kept: an export counts as a backup as soon as the ZIP is handed to the browser. The reminder can't be dismissed or snoozed.
 - **Backup limits:** no ZIP64, so one archive must stay under 4 GB and 65,535 files (export journals separately if needed). The whole backup's JSON and each restored journal are processed in memory (files are not, except deflated ones from other tools). Restoring the same backup twice as "new" makes two journals ("Name (2)"): by design, since ids are always regenerated.
 - **Restored documents still `pending`** (exported mid-indexing) are indexed on the next launch, not immediately.
 - **Phone header:** the journal name is truncated to a few characters at 375 px; the full name is in the switcher list.
@@ -388,12 +402,11 @@ Git was set up only after Milestone 3, so this list is taken from the session re
 
 ## 9. Next steps (nothing scheduled)
 
-All agreed milestones (1–6) are complete. Candidates, roughly in order of value:
-1. **A backup reminder** (e.g. "last backup 30 days ago" on the overview), since backups are manual and the data lives in one browser profile.
-2. **Save a PDF text selection as an extract** (with the page number) from the viewer.
-3. **Text indexing for `.docx` / `.xlsx`** using the browser's `DecompressionStream` (no new dependency).
-4. Move or copy single cards, extracts or documents between journals.
-5. PDF outline and page thumbnails; persistent highlights.
-6. Smaller items: pinch-zoom in the image viewer, drop an image onto a card, reorder tasks and cards, Markdown in cards.
+All agreed milestones (1–6) and the backup reminder are complete. Candidates, roughly in order of value:
+1. **Save a PDF text selection as an extract** (with the page number) from the viewer.
+2. **Text indexing for `.docx` / `.xlsx`** using the browser's `DecompressionStream` (no new dependency).
+3. Move or copy single cards, extracts or documents between journals.
+4. PDF outline and page thumbnails; persistent highlights.
+5. Smaller items: a snooze for the backup reminder, pinch-zoom in the image viewer, drop an image onto a card, reorder tasks and cards, Markdown in cards.
 
 **Outstanding manual checks** (cannot be done in the in-app browser): viewer full screen; a real file chooser and a real saved download; real Office files; password-protected and scanned PDFs and a large real filing; a backup of hundreds of MB; restoring in a different browser; the reduced-motion transition; touch devices; Firefox and Safari.

@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
+import { lastBackupKey } from '../db/bundle';
 import { DEFAULT_JOURNAL_ID } from '../lib/id';
 import { useNow } from './useNow';
 import { useActiveJournalId } from './useActiveJournal';
@@ -124,6 +125,15 @@ export function useLastVisitedPhaseId() {
     // Before Milestone 5 there was one journal and one shared key.
     if (own || journalId !== DEFAULT_JOURNAL_ID) return own;
     return (await db.meta.get('lastPhaseId'))?.value as ID | undefined;
+  }, [journalId]);
+}
+
+/** When the active journal was last included in an exported backup: `null` if never, `undefined` while loading. */
+export function useLastBackupAt() {
+  const journalId = useActiveJournalId();
+  return useLiveQuery(async () => {
+    if (!journalId) return undefined;
+    return ((await db.meta.get(lastBackupKey(journalId)))?.value as number | undefined) ?? null;
   }, [journalId]);
 }
 

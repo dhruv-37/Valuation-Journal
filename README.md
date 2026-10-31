@@ -69,6 +69,7 @@ Supported images for snapshots: PNG, JPG/JPEG and WebP, up to 25 MB each.
 - Each journal has its own phases and their order, checklists, cards, snapshots, extracts, documents, tags and Recall deck. Search, the Document Library and Recall only show the open journal.
 - **Export backup** saves one `.zip` with the chosen journals: every record, the original images and documents, connections, and Recall history and schedules. It goes to your browser's downloads folder. **Keep it somewhere safe**; it is the only copy of your journal outside this browser.
 - **Restore from backup** checks the file first (damaged or foreign files are refused with a reason) and nothing changes until you choose, for each journal in it, **Import as a new journal**, **Replace** the journal with the same name, or **Skip**. Replacing asks for confirmation. Restored records always get new ids, so a restore never collides with what is already there.
+- **Backup reminder:** the overview shows a small notice when the open journal has never been exported and holds documents or snapshots, or when its last export is more than 30 days old. **Back up now** opens Backup & restore. Restoring a backup doesn't count as a backup.
 - Limits: one backup must stay under 4 GB; export big journals separately if needed.
 
 ## Recall
@@ -124,7 +125,7 @@ src/
     zip.ts, backup.ts      ZIP writer/reader and the backup format (export, checks, restore)
     cardTypes.ts, extractKinds.ts, format.ts
   components/
-    overview/              Pathway, phase cards, summary
+    overview/              Pathway, phase cards, summary, backup reminder
     workspace/             Zoom transition layer, phase header, objectives, checklist, journal, tabs
     library/               Snapshot gallery, image viewer, extracts, filters, editors, drop overlay
     documents/             Document Library page, phase Documents tab, viewer and previews, editor, link dialog

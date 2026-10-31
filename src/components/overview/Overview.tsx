@@ -6,6 +6,7 @@ import { AppHeader } from '../AppHeader';
 import { useActiveJournal } from '../../hooks/useActiveJournal';
 import { ProgressBar } from '../ui/ProgressBar';
 import { PhasePathway } from './PhasePathway';
+import { BackupReminder } from './BackupReminder';
 
 interface OverviewProps {
   phases: Phase[];
@@ -66,6 +67,9 @@ export function Overview({ phases, stats, documentCount, lastVisitedId, onOpenPh
                 </span>
               </Button>
             )}
+            <div>
+              <BackupReminder hasFiles={documentCount + snapshots > 0} />
+            </div>
           </div>
 
           <dl className="grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface shadow-card sm:w-fit">

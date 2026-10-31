@@ -1,7 +1,7 @@
 import { db } from './database';
 import { uid } from '../lib/id';
 import { getActiveJournalId } from '../lib/activeJournal';
-import { JOURNAL_TABLES, collectJournal, deleteJournalRecords, remapBundle, writeBundle } from './bundle';
+import { JOURNAL_TABLES, collectJournal, deleteJournalRecords, lastBackupKey, remapBundle, writeBundle } from './bundle';
 import { buildStarterJournal } from './seed';
 import { prepareImage } from '../lib/images';
 import { normaliseUrl } from '../lib/format';
@@ -633,6 +633,16 @@ async function removeRevisionsOf(sourceType: RevisionSourceType, sourceIds: ID[]
 export async function setLastVisitedPhase(id: ID) {
   const phase = await db.phases.get(id);
   if (phase) await db.meta.put({ key: `lastPhaseId:${phase.journalId}`, value: id });
+}
+
+/**
+ * Records a successful backup export for each journal it included, for the
+ * overview's backup reminder. Per journal, so exporting one journal doesn't
+ * hide the reminder for another. Restoring a backup never calls this.
+ */
+export async function recordBackupExport(journalIds: ID[]) {
+  const at = now();
+  await db.meta.bulkPut(journalIds.map((id) => ({ key: lastBackupKey(id), value: at })));
 }
 
 /* --------------------------------- Journals --------------------------------- */

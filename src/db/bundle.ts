@@ -31,6 +31,8 @@ export const JOURNAL_TABLES = [
 ];
 
 const lastPhaseKey = (journalId: ID) => `lastPhaseId:${journalId}`;
+/** When the journal was last included in an exported backup (epoch ms). Not copied or restored with the journal. */
+export const lastBackupKey = (journalId: ID) => `lastBackupAt:${journalId}`;
 
 /** Reads all of a journal's records (files included as Blobs). */
 export async function collectJournal(journalId: ID): Promise<JournalBundle> {
@@ -222,5 +224,9 @@ export async function deleteJournalRecords(journalId: ID, { keepJournal = false 
   await db.revisions.where('journalId').equals(journalId).delete();
   await db.phases.bulkDelete(phaseIds);
   await db.meta.delete(lastPhaseKey(journalId));
-  if (!keepJournal) await db.journals.delete(journalId);
+  if (!keepJournal) {
+    // A replaced journal keeps its backup date: the export it records still happened.
+    await db.meta.delete(lastBackupKey(journalId));
+    await db.journals.delete(journalId);
+  }
 }
