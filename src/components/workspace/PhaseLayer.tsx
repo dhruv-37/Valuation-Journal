@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, type Variants } from 'motion/react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Files, Search } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion, type Variants } from 'motion/react';
+import { ArrowLeft, Brain, ChevronLeft, ChevronRight, Files, Search } from 'lucide-react';
 import type { ID, Phase } from '../../types';
 import { phaseNumber, isTypingTarget } from '../../lib/format';
 import { isDialogOpen } from '../ui/Modal';
@@ -40,6 +40,15 @@ const layerVariants: Variants = {
   open: { clipPath: FULL, opacity: 1, scale: 1, transition: { duration: 0.5, ease: EASE } },
 };
 
+/**
+ * With "reduce motion" on, a short cross-fade instead of the zoom. MotionConfig
+ * only switches off transforms; the clip-path expansion would still run.
+ */
+const reducedLayerVariants: Variants = {
+  closed: { clipPath: FULL, opacity: 0, transition: { duration: 0.15 } },
+  open: { clipPath: FULL, opacity: 1, transition: { duration: 0.15 } },
+};
+
 const contentVariants: Variants = {
   enter: (dir: number) => ({ opacity: 0, x: dir * 28 }),
   center: { opacity: 1, x: 0, transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] } },
@@ -60,6 +69,7 @@ interface PhaseLayerProps {
 
 export function PhaseLayer({ phaseId, phases, focus, backLabel, onClose, onNavigate, onEditPhase, onSearch }: PhaseLayerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
   const journal = useActiveJournal();
   const index = phases.findIndex((p) => p.id === phaseId);
   const phase = phases[index];
@@ -108,7 +118,7 @@ export function PhaseLayer({ phaseId, phases, focus, backLabel, onClose, onNavig
       ref={scrollRef}
       className="fixed inset-0 z-40 overflow-x-hidden overflow-y-auto overscroll-contain bg-canvas"
       custom={phaseId}
-      variants={layerVariants}
+      variants={reduceMotion ? reducedLayerVariants : layerVariants}
       initial="closed"
       animate="open"
       exit="closed"
@@ -152,6 +162,9 @@ export function PhaseLayer({ phaseId, phases, focus, backLabel, onClose, onNavig
             <span className="mx-1 hidden h-5 w-px bg-line sm:block" />
             <IconButton label="Document Library" onClick={router.toDocuments}>
               <Files className="size-[18px]" />
+            </IconButton>
+            <IconButton label="Recall" onClick={router.toRecall} className="max-sm:hidden">
+              <Brain className="size-[18px]" />
             </IconButton>
             <button
               type="button"

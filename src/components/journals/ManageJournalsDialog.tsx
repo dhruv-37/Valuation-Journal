@@ -4,7 +4,7 @@ import type { ID, JournalCounts } from '../../types';
 import { db } from '../../db/database';
 import { countJournal } from '../../db/bundle';
 import { useActiveJournalId, useJournals } from '../../hooks/useActiveJournal';
-import { formatDate } from '../../lib/format';
+import { formatDate, plural } from '../../lib/format';
 import { formatBytes } from '../../lib/images';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -59,12 +59,19 @@ export function ManageJournalsDialog({ open, onClose }: { open: boolean; onClose
                   {active && <span className="text-[10.5px] font-semibold tracking-wider text-gold uppercase">Open now</span>}
                 </p>
                 {j.description && <p className="mt-0.5 line-clamp-2 text-[13px] text-muted">{j.description}</p>}
-                <p className="mt-1.5 text-xs text-faint tabular">
+                <p className="mt-1.5 text-xs text-muted tabular">
                   {c
-                    ? `${c.phases} phases · ${c.cards} cards · ${c.snapshots + c.extracts} library items · ${c.documents} documents · ${c.revisions} in Recall${c.fileBytes ? ` · ${formatBytes(c.fileBytes)}` : ''}`
+                    ? [
+                        plural(c.phases, 'phase'),
+                        plural(c.cards, 'card'),
+                        plural(c.snapshots + c.extracts, 'library item'),
+                        plural(c.documents, 'document'),
+                        `${c.revisions} in Recall`,
+                        ...(c.fileBytes ? [formatBytes(c.fileBytes)] : []),
+                      ].join(' · ')
                     : 'Counting…'}
-                  <span className="max-sm:block"> · created {formatDate(j.createdAt)}</span>
                 </p>
+                <p className="mt-0.5 text-xs text-faint">Created {formatDate(j.createdAt)}</p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {!active && (

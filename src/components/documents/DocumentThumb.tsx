@@ -11,7 +11,7 @@ export function DocumentThumb({ document, className = '' }: { document: Research
   if (url) {
     return (
       <span className={`relative block overflow-hidden bg-surface ${className}`}>
-        <img src={url} alt="" draggable={false} className="h-full w-full object-cover object-top" />
+        <img src={url} alt="" draggable={false} loading="lazy" decoding="async" className="h-full w-full object-cover object-top" />
         <span className={`absolute right-1 bottom-1 rounded px-1 py-px text-[9px] font-bold tracking-wide ${meta.text} bg-surface/90`}>
           {formatBadge(document.fileName, document.kind)}
         </span>

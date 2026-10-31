@@ -18,3 +18,6 @@ export function normaliseUrl(input: string | undefined): string | undefined {
 }
 
 export const isSafeUrl = (url: string) => /^https?:\/\//i.test(url);
+
+/** "1 phase", "3 phases"; pass the plural when it isn't just +s ("1 library item"). */
+export const plural = (count: number, singular: string, pluralForm = `${singular}s`) => `${count} ${count === 1 ? singular : pluralForm}`;

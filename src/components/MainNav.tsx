@@ -51,8 +51,8 @@ function NavLink({ active, onClick, icon, label, count, badge, badgeTitle }: Nav
       }`}
     >
       <span className={active ? 'text-gold' : ''}>{icon}</span>
-      <span className="hidden sm:inline">{label}</span>
-      {count !== undefined && count > 0 && <span className="hidden text-xs font-normal text-faint tabular md:inline">{count}</span>}
+      <span className="hidden lg:inline">{label}</span>
+      {count !== undefined && count > 0 && <span className="hidden text-xs font-normal text-faint tabular lg:inline">{count}</span>}
       {badge !== undefined && (
         <span
           aria-label={badgeTitle}

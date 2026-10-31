@@ -105,7 +105,7 @@ export function RecallPage({ phases, documentCount, onSearch, onStart, onOpenSou
       <AppHeader current="recall" documentCount={documentCount} onSearch={onSearch} />
 
       <main className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-8">
-        <section className="grid items-end gap-8 py-10 sm:py-14 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <section className="grid items-end gap-8 py-10 sm:py-14 xl:grid-cols-[minmax(0,1fr)_auto]">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold tracking-[0.2em] text-gold uppercase">{journal?.name ?? 'Journal'} · Active recall</p>
             <h1 className="mt-3 font-display text-[40px] leading-[1.05] font-medium tracking-tight text-ink sm:text-[52px]">Recall</h1>
@@ -128,7 +128,7 @@ export function RecallPage({ phases, documentCount, onSearch, onStart, onOpenSou
             </div>
           </div>
 
-          <dl className="grid grid-cols-2 divide-line rounded-2xl border border-line bg-surface shadow-card max-sm:divide-y sm:grid-cols-4 sm:divide-x">
+          <dl className="grid grid-cols-2 divide-line rounded-2xl border border-line bg-surface shadow-card max-sm:divide-y sm:w-fit sm:grid-cols-4 sm:divide-x">
             <Figure label="Revision cards" value={counts.total} note={`${counts.new} not yet reviewed`} />
             <Figure label="Remembered" value={counts.remembered} note={`${counts.mastered} well known`} />
             <Figure label="Needs revision" value={counts.needs} note={counts.needs ? 'coming back soon' : 'none missed'} tone={counts.needs ? 'warn' : undefined} />

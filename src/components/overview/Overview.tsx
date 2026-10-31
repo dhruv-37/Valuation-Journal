@@ -43,7 +43,7 @@ export function Overview({ phases, stats, documentCount, lastVisitedId, onOpenPh
       <AppHeader current="overview" documentCount={documentCount} onSearch={onSearch} />
 
       <main className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-8">
-        <section className="grid items-end gap-10 py-10 sm:py-14 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <section className="grid items-end gap-10 py-10 sm:py-14 xl:grid-cols-[minmax(0,1fr)_auto]">
           <div>
             <p className="truncate text-[11px] font-semibold tracking-[0.2em] text-gold uppercase">{journal?.name ?? 'Journal'} · Workflow</p>
             <h1 className="mt-3 font-display text-[40px] leading-[1.05] font-medium tracking-tight text-ink sm:text-[52px]">
@@ -57,16 +57,18 @@ export function Overview({ phases, stats, documentCount, lastVisitedId, onOpenPh
             {resumeIndex >= 0 && (
               <Button
                 variant="primary"
-                className="mt-6"
+                className="mt-6 max-w-full"
                 onClick={() => onOpenPhase(phases[resumeIndex].id)}
-                icon={<ArrowRight className="order-last size-4" />}
+                icon={<ArrowRight className="order-last size-4 shrink-0" />}
               >
-                Resume · {phaseNumber(resumeIndex)} {phases[resumeIndex].title}
+                <span className="truncate">
+                  Resume · {phaseNumber(resumeIndex)} {phases[resumeIndex].title}
+                </span>
               </Button>
             )}
           </div>
 
-          <dl className="grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface shadow-card">
+          <dl className="grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface shadow-card sm:w-fit">
             <Figure label="Overall progress" value={`${overall}%`}>
               <ProgressBar value={overall} className="mt-3 w-full" />
             </Figure>

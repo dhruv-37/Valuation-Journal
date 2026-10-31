@@ -10,6 +10,7 @@ Valuation Journal is a personal, local-first DCF knowledge workspace. It's built
 npm run dev        # http://localhost:5173 (launch config "valuation-journal")
 npm run typecheck  # tsc only
 npm run build      # tsc + vite build; must pass before a milestone is called done
+npm run preview    # serve dist/ at http://localhost:4173 (launch config "valuation-journal-preview")
 ```
 
 There is no automated test suite. Verify behaviour in the browser.
@@ -52,7 +53,10 @@ There is no automated test suite. Verify behaviour in the browser.
   - Use `lucide-react`. Check the name exists before using it: `Trash` exists, `Trash2` and `BookMarked` do not.
 - **Animation**
   - Use `motion/react`.
+  - `MotionConfig reducedMotion="user"` only turns off transforms. Animations of other properties (such as the phase layer's `clip-path`) must check `useReducedMotion()` themselves.
   - Don't put `layout` or `layoutId` on lists inside the workspace. The zoom transition transforms the parent, which breaks the measurements.
+- **Performance**
+  - Full pages other than the overview, and heavy on-demand UI, are `lazy` chunks (see `App.tsx`, `JournalsProvider.tsx`). Keep the main bundle under the 800 kB warning.
 - **Code style**
   - Match the surrounding code: short doc comments explaining *why*, named exports, one component per file, and types in `src/types.ts`.
 - **Routing**

@@ -1,12 +1,12 @@
 # Project Context: Valuation Journal
 
-_Last updated: 2026-10-31, after Milestone 5 (Multiple journals, templates and backups)._
+_Last updated: 2026-10-31, after Milestone 6 (Refinement and finalisation). All six milestones are complete._
 
 ## 0. Resuming work (read this first)
 
-- **Current state:** Milestones 1–5 are complete and verified. No work is in progress and no change is half-finished.
-- **Plan agreed with the user (2026-10-31):** Milestone 4 Recall & Revision (done) → Milestone 5 Multiple journals, templates and ZIP backups (done) → Milestone 6 Product refinement and finalisation. The brief for 6 is summarised in §9. Finish, document and commit each milestone before starting the next.
-- **Next:** Milestone 6.
+- **Current state:** Milestones 1–6 are complete and verified. No work is in progress and no change is half-finished.
+- **Plan agreed with the user (2026-10-31):** Milestones 4 (Recall), 5 (journals and backups) and 6 (refinement) were done in order, each documented and committed.
+- **Next:** nothing is scheduled. Candidates and outstanding manual checks are in §9; the user chooses.
 - **Before starting a milestone:** read CLAUDE.md, this file and DEVELOPMENT_LOG.md; run `npm run build` to confirm a clean baseline.
 - **Checkpoints:** git was initialised on 2026-10-31 (branch `main`, no remote). The first commit is the checkpoint after Milestone 3; everything before it is recorded only in DEVELOPMENT_LOG.md. End each milestone with a checkpoint commit after the docs are updated.
 - **Test browser:** the in-app browser's database holds test data (see the end of DEVELOPMENT_LOG.md), not a fresh seed. The user's real data in their own browser has never been touched. A cache named `vj-test-stash` in the test browser holds a test backup ZIP.
@@ -35,10 +35,11 @@ A personal, local-first workspace for learning and documenting the DCF valuation
 | 3: Document Management | Document attachments, PDF.js viewer, Document Library page, document ↔ knowledge connections, text search inside files, schema v3 | Done; manually verified, including the v2 → v3 migration (see §6) |
 | 4: Recall & Revision | Revision cards linked to cards/extracts, Leitner-style scheduling, Recall dashboard (`#/recall`), session overlay, filters, schema v4 | Done; verified in the browser, including the v3 → v4 migration |
 | 5: Journals, templates, backups | Journal switcher, create (DCF template / copy / empty), rename, duplicate, delete; query scoping per journal; ZIP backup and restore with validation; no schema change | Done; verified in the browser, including a restore onto a freshly created database |
-| 6 | Product refinement and finalisation | Next |
+| 6: Refinement and finalisation | Layout fixes at 1024 px and on phones, header and nav breakpoints, reduced-motion phase transition, Recall shortcut in the phase header, lazy-loaded pages, lazy thumbnails, plural labels, production build checked in a browser | Done; verified in the browser (dev and production build) |
 
-The production build (`npm run build`) is clean (re-run 2026-10-31 after Milestone 5).
-- The main JS bundle is ≈ 758 kB (≈ 229 kB gzip; warning limit 800 kB). The main CSS is ≈ 70 kB. The backup code (`BackupDialog` + `lib/backup.ts` + `lib/zip.ts`) is a separate ≈ 25 kB chunk loaded when Backup & restore is first opened.
+The production build (`npm run build`) is clean with no size warning (re-run 2026-10-31 after Milestone 6).
+- Initial JS: the entry ≈ 423 kB (≈ 125 kB gzip) plus a shared vendor chunk ≈ 271 kB (≈ 90 kB gzip; Rolldown names it `types-*.js` after its first module) and a few small shared chunks. The main CSS is ≈ 71 kB.
+- Loaded on first use: `DocumentLibraryPage` ≈ 10 kB, `RecallPage` ≈ 22 kB, `RecallSession` ≈ 12 kB, `BackupDialog` (with `lib/backup.ts` and `lib/zip.ts`) ≈ 25 kB, and PDF.js as before.
 - PDF.js loads on demand in separate chunks: library ≈ 430 kB, `pdf_viewer` ≈ 169 kB, the app's `PdfViewer` component ≈ 11 kB, worker ≈ 1.26 MB, viewer CSS ≈ 230 kB.
 - `dist/pdfjs/` holds the cmaps, standard fonts, wasm decoders (`openjpeg`, `jbig2`, `qcms`) and ICC profiles. It also holds `quickjs-eval.wasm` (≈ 469 kB), which the plugin copies with the rest of the `wasm` folder; the app never loads it because scripting is disabled.
 
@@ -92,7 +93,7 @@ App.tsx        active journal, phases + stats, hash route, global shortcuts (Ctr
   - `lib/recall.ts` holds the schedule: `INTERVAL_DAYS = [1, 3, 7, 14, 30, 60, 120]`. Remembered climbs one step (the first Remembered after new or a lapse uses step 0, i.e. 1 day); Needs revision resets to step 0 and is due again in 10 minutes. New cards are always due. `MASTERED_LEVEL = 3` (14+ days) counts as "well known".
   - Each review writes a `reviewLog` entry holding the schedule before the review. Rating a card again in the same session undoes the earlier entry first (`undoReview`), so a card is never counted twice.
   - `KnowledgeCardView` and `ExtractView` show `RecallToggle` (hover toolbar) and `RecallBadge` ("In Recall · next in 3 days").
-- **Zoom transition:** `workspace/PhaseLayer.tsx`.
+- **Zoom transition:** `workspace/PhaseLayer.tsx`. With the OS "reduce motion" setting on (`useReducedMotion()`), a 0.15 s cross-fade replaces it: `MotionConfig reducedMotion="user"` only disables transforms, and this transition animates `clip-path`.
   - The layer expands from the clicked phase card's rect using `clip-path`, and shrinks back to it on close (a fade when no card is on screen, e.g. from the Document Library).
   - It finds the card by `data-phase-card`.
   - `AnimatePresence custom={phaseId}` keeps the exit pointed at the right card.
@@ -288,6 +289,25 @@ The 13 seeded phases are:
 - **Console:** a clean load walking every page, the journal dialogs, a switch and a phase produced no errors.
 - **Build:** clean.
 
+**Milestone 6**
+- **Layout:** the overview and Recall heroes stack below 1280 px (at 1024 px the stats panel squeezed the text column and the Resume button ran under it); stats panels keep their natural width when stacked; the Resume label truncates. Header: nav labels and the document count show from 1024 px; the journal name never flex-shrinks from 640 px up and has a max width per breakpoint (a sub-pixel rounding made Chrome add an ellipsis to names that fit); the "Valuation Journal" label never wraps.
+- **Navigation:** a Recall icon next to the Document Library icon in the phase header (hidden on phones).
+- **Motion:** reduced-motion cross-fade for the phase layer (above).
+- **Image viewer:** Pin and Edit now really hide on phones (`max-sm:hidden`; the Milestone 2 known issue).
+- **Performance:** the Document Library, Recall page and revision session are `lazy` chunks (the overview stays in the entry); thumbnails use `loading="lazy"` and `decoding="async"`.
+- **Copy:** `plural()` in `lib/format.ts` for counts in the journal switcher, Manage journals and Backup dialogs; the creation date on its own line.
+- **Tooling:** `.claude/launch.json` has a second configuration, `valuation-journal-preview` (`npm run preview` on port 4173), to test the production build.
+
+**Verification done at the end of Milestone 6:**
+- **Visual review** (screenshots, both themes): overview, Recall page, a revision session, Manage journals, a phase workspace (Library tab), the journal switcher; the issues above were found this way and fixed.
+- **Layout:** measured at 1024 px: no overlap in the hero; the journal name fits ("DCF Valuation (2)" untruncated). At 375 px the earlier checks still hold (switcher shrinks, popover fits).
+- **Lazy chunks:** loading `#/recall` directly, starting a session and rating a card, then Documents and the overview: all rendered, no errors.
+- **Production build in a browser** (first time; outstanding since Milestone 3): `npm run preview` served `dist/` on its own origin (so a fresh database): the seed was correct; a dropped PDF was stored, indexed, and rendered in the viewer with a canvas and a text layer using the worker emitted in `dist/assets`; a backup export and restore round trip worked with the lazily loaded backup chunk. No console errors.
+- **Integrity:** the script over every table of the 5 test journals found 0 problems.
+- **Build:** clean, no size warning.
+
+**Not verified in Milestone 6:** the reduced-motion transition (the in-app browser cannot emulate `prefers-reduced-motion`; the code path is a plain variant swap); touch devices; Firefox and Safari (only Chromium was used throughout).
+
 **Not verified in Milestone 5:** a backup near the 4 GB limit or with 200 MB files (the code paths are the same streaming ones tested with 3 MB); a real saved download and real file chooser (both driven programmatically through the same handlers); restoring in a different browser.
 
 ## 7. Key files
@@ -323,7 +343,7 @@ The 13 seeded phases are:
 | `src/components/search/` | `SearchPalette` |
 | `src/components/ui/` | `Button`/`IconButton`/`Kbd`, `Modal`, `ConfirmProvider`, `Toast`, `EditableText`, `Menu`, `ProgressBar`, `TagInput`, `Field`, `AddLineInput`, `Select` |
 | `scripts/vite-pdfjs-assets.mjs` (+ `.d.mts`) | Vite plugin: PDF.js runtime assets at `/pdfjs/` |
-| `.claude/launch.json` | Dev-server config `valuation-journal` (port 5173) |
+| `.claude/launch.json` | `valuation-journal` (dev server, port 5173) and `valuation-journal-preview` (production build, port 4173) |
 
 ### Files touched in Milestone 3
 
@@ -360,14 +380,20 @@ Git was set up only after Milestone 3, so this list is taken from the session re
 - **No pinch-to-zoom** in the image viewer on touch screens (not tested on a real touch device). PDF.js has its own pinch support, also untested.
 - Images can't be dropped onto a specific card; dropping anywhere adds a phase snapshot. A card's "attach image" button links an upload to that card.
 - Tasks and cards can't be reordered in the UI (the `order` fields exist). There is no rich text or Markdown in card content.
-- The image viewer's `hidden sm:inline-flex` pin/edit buttons stay visible on phones (the `IconButton`-style base class wins). The document viewer uses `max-sm:hidden` instead. Pre-existing and harmless.
 - There are no automated tests; verification is manual in the browser.
 - Git history starts at the Milestone 3 checkpoint; earlier history exists only in DEVELOPMENT_LOG.md. There is no remote, so the repository is not backed up off this machine.
-- The main bundle is ≈ 693 kB. Split it if it nears 800 kB.
+- Bundle: the entry plus vendor chunk is ≈ 694 kB before gzip. New pages should be `lazy` like the Document Library and Recall pages.
+- Only Chromium has been used for testing (the in-app browser); Firefox and Safari are untested. `CompressionStream`/`DecompressionStream` (backups) need Firefox 113+ / Safari 16.4+.
 - `dist/pdfjs/wasm/` ships `quickjs-eval.wasm` (≈ 469 kB) that is never used. The asset plugin could skip it; harmless for a local app.
 
-## 9. Next steps (agreed plan)
+## 9. Next steps (nothing scheduled)
 
-**Milestone 6: Refinement and finalisation** (next): review every screen (overview, phases, cards, snapshot library and image viewer, Document Library and PDF viewer, search, Recall, journal switcher, backup dialogs) for typography, spacing, hierarchy and consistency in both themes and at 375 px; refine animations (zoom, phase navigation, cards, modals, viewers, journal switching, revision) with reduced motion respected; re-check data integrity (isolation, attachments, links, search, scheduling, ZIP round trip, migrations, persistence); performance (large image collections, PDF, search, lazy loading, keep the main bundle under 800 kB); build; final docs and handover.
+All agreed milestones (1–6) are complete. Candidates, roughly in order of value:
+1. **A backup reminder** (e.g. "last backup 30 days ago" on the overview), since backups are manual and the data lives in one browser profile.
+2. **Save a PDF text selection as an extract** (with the page number) from the viewer.
+3. **Text indexing for `.docx` / `.xlsx`** using the browser's `DecompressionStream` (no new dependency).
+4. Move or copy single cards, extracts or documents between journals.
+5. PDF outline and page thumbnails; persistent highlights.
+6. Smaller items: pinch-zoom in the image viewer, drop an image onto a card, reorder tasks and cards, Markdown in cards.
 
-**Later candidates:** a backup reminder; "save selection as extract" from the PDF viewer; `.docx`/`.xlsx` text indexing; PDF outline and thumbnails; pinch-zoom; drop an image onto a card; reorder tasks and cards; Markdown in cards; moving or copying single items between journals. Outstanding Milestone 3 checks in a normal browser: viewer full screen, real file chooser and saved download, real Office files, password-protected and scanned PDFs, a large filing, `npm run preview`.
+**Outstanding manual checks** (cannot be done in the in-app browser): viewer full screen; a real file chooser and a real saved download; real Office files; password-protected and scanned PDFs and a large real filing; a backup of hundreds of MB; restoring in a different browser; the reduced-motion transition; touch devices; Firefox and Safari.

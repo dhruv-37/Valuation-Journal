@@ -10,7 +10,7 @@ import { BackupError, exportJournals, loadBackupJournal, readBackup, type Backup
 import { ZipError } from '../../lib/zip';
 import { isQuotaError, readStorageInfo } from '../../lib/documents';
 import { formatBytes } from '../../lib/images';
-import { formatDate, percent } from '../../lib/format';
+import { formatDate, percent, plural } from '../../lib/format';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ProgressBar } from '../ui/ProgressBar';
@@ -379,9 +379,15 @@ function RestorePanel({ busy, setBusy, onClose, onImported }: { busy: boolean; s
 
 function summary(c: JournalCounts | undefined) {
   if (!c) return 'Counting…';
-  return `${c.phases} phases · ${c.cards} cards · ${c.snapshots} snapshots · ${c.extracts} extracts · ${c.documents} documents · ${c.revisions} in Recall${
-    c.fileBytes ? ` · ${formatBytes(c.fileBytes)}` : ''
-  }`;
+  return [
+    plural(c.phases, 'phase'),
+    plural(c.cards, 'card'),
+    plural(c.snapshots, 'snapshot'),
+    plural(c.extracts, 'extract'),
+    plural(c.documents, 'document'),
+    `${c.revisions} in Recall`,
+    ...(c.fileBytes ? [formatBytes(c.fileBytes)] : []),
+  ].join(' · ');
 }
 
 function CheckRow({ checked, onToggle, disabled, title, detail }: { checked: boolean; onToggle: () => void; disabled: boolean; title: string; detail: string }) {

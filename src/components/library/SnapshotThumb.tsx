@@ -17,6 +17,8 @@ export function SnapshotThumb({ snapshot, className = '', fit = 'contain' }: { s
       src={url}
       alt={snapshot.title || 'Snapshot'}
       draggable={false}
+      loading="lazy"
+      decoding="async"
       className={`${fit === 'contain' ? 'object-contain' : 'object-cover'} ${className}`}
     />
   ) : (

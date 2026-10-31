@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { ID, Phase } from './types';
 import { useDocuments, useLastVisitedPhaseId, usePhases, usePhaseStats } from './hooks/useJournalData';
@@ -11,13 +11,16 @@ import { SearchPalette, type SearchSelection } from './components/search/SearchP
 import { ManagePhasesDialog } from './components/phases/ManagePhasesDialog';
 import { PhaseFormDialog, type PhaseFormState } from './components/phases/PhaseFormDialog';
 import { DocumentsProvider } from './components/documents/DocumentsProvider';
-import { DocumentLibraryPage } from './components/documents/DocumentLibraryPage';
 import { isDialogOpen } from './components/ui/Modal';
-import { RecallPage } from './components/recall/RecallPage';
-import { RecallSession, type RecallSessionState } from './components/recall/RecallSession';
+import type { RecallSessionState } from './components/recall/RecallSession';
 import type { RecallItem } from './hooks/useJournalData';
 import { useActiveJournalId } from './hooks/useActiveJournal';
 import { JournalsProvider } from './components/journals/JournalsProvider';
+
+// Pages other than the overview, and the revision session, load on first use.
+const DocumentLibraryPage = lazy(() => import('./components/documents/DocumentLibraryPage').then((m) => ({ default: m.DocumentLibraryPage })));
+const RecallPage = lazy(() => import('./components/recall/RecallPage').then((m) => ({ default: m.RecallPage })));
+const RecallSession = lazy(() => import('./components/recall/RecallSession').then((m) => ({ default: m.RecallSession })));
 
 export default function App() {
   const journalId = useActiveJournalId();
@@ -103,68 +106,75 @@ export default function App() {
 
   return (
     <JournalsProvider>
-    <DocumentsProvider phases={phases} onNavigate={navigate}>
-      {/* Keyed by journal: switching journals fades the page in afresh. */}
-      <motion.div
-        key={journalId}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        inert={!!activeId}
-        aria-hidden={!!activeId}
-      >
-        {page === 'documents' ? (
-          <DocumentLibraryPage phases={phases} onOpenPhase={openPhase} onSearch={() => setSearchOpen(true)} covered={!!activeId} />
-        ) : page === 'recall' ? (
-          <RecallPage
-            phases={phases}
-            documentCount={documents?.length ?? 0}
-            onSearch={() => setSearchOpen(true)}
-            onStart={setSession}
-            onOpenSource={openRecallSource}
-          />
-        ) : (
-          <Overview
-            phases={phases}
-            stats={stats}
-            documentCount={documents?.length ?? 0}
-            lastVisitedId={lastVisitedId}
-            onOpenPhase={openPhase}
-            onAddPhase={() => setPhaseForm({ mode: 'create' })}
-            onManage={() => setManageOpen(true)}
-            onSearch={() => setSearchOpen(true)}
-          />
-        )}
-      </motion.div>
+      <DocumentsProvider phases={phases} onNavigate={navigate}>
+        {/* Keyed by journal: switching journals fades the page in afresh. */}
+        <motion.div
+          key={journalId}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          inert={!!activeId}
+          aria-hidden={!!activeId}
+        >
+          <Suspense fallback={<div className="min-h-dvh" />}>
+            {page === 'documents' ? (
+              <DocumentLibraryPage phases={phases} onOpenPhase={openPhase} onSearch={() => setSearchOpen(true)} covered={!!activeId} />
+            ) : page === 'recall' ? (
+              <RecallPage
+                phases={phases}
+                documentCount={documents?.length ?? 0}
+                onSearch={() => setSearchOpen(true)}
+                onStart={setSession}
+                onOpenSource={openRecallSource}
+              />
+            ) : (
+              <Overview
+                phases={phases}
+                stats={stats}
+                documentCount={documents?.length ?? 0}
+                lastVisitedId={lastVisitedId}
+                onOpenPhase={openPhase}
+                onAddPhase={() => setPhaseForm({ mode: 'create' })}
+                onManage={() => setManageOpen(true)}
+                onSearch={() => setSearchOpen(true)}
+              />
+            )}
+          </Suspense>
+        </motion.div>
 
-      <AnimatePresence custom={lastActiveId.current}>
-        {activeId && (
-          <PhaseLayer
-            key="phase-layer"
-            phaseId={activeId}
-            phases={phases}
-            focus={focus}
-            backLabel={page === 'documents' ? 'Documents' : page === 'recall' ? 'Recall' : 'Pathway'}
-            onClose={closePhase}
-            onNavigate={openPhase}
-            onEditPhase={(phase: Phase) => setPhaseForm({ mode: 'edit', phase })}
-            onSearch={() => setSearchOpen(true)}
-          />
-        )}
-      </AnimatePresence>
+        <AnimatePresence custom={lastActiveId.current}>
+          {activeId && (
+            <PhaseLayer
+              key="phase-layer"
+              phaseId={activeId}
+              phases={phases}
+              focus={focus}
+              backLabel={page === 'documents' ? 'Documents' : page === 'recall' ? 'Recall' : 'Pathway'}
+              onClose={closePhase}
+              onNavigate={openPhase}
+              onEditPhase={(phase: Phase) => setPhaseForm({ mode: 'edit', phase })}
+              onSearch={() => setSearchOpen(true)}
+            />
+          )}
+        </AnimatePresence>
 
-      <ManagePhasesDialog
-        open={manageOpen}
-        onClose={() => setManageOpen(false)}
-        phases={phases}
-        stats={stats}
-        onAdd={() => setPhaseForm({ mode: 'create' })}
-        onEdit={(phase) => setPhaseForm({ mode: 'edit', phase })}
-      />
-      <PhaseFormDialog state={phaseForm} onClose={() => setPhaseForm(null)} />
-      <RecallSession state={session} phases={phases} onClose={() => setSession(null)} onRestart={setSession} onOpenSource={openRecallSource} />
-      <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} phases={phases} onSelect={navigate} />
-    </DocumentsProvider>
+        <ManagePhasesDialog
+          open={manageOpen}
+          onClose={() => setManageOpen(false)}
+          phases={phases}
+          stats={stats}
+          onAdd={() => setPhaseForm({ mode: 'create' })}
+          onEdit={(phase) => setPhaseForm({ mode: 'edit', phase })}
+        />
+        <PhaseFormDialog state={phaseForm} onClose={() => setPhaseForm(null)} />
+        {/* Mounted on the Recall page (or while a session is open), so its chunk loads with that page. */}
+        {(page === 'recall' || session) && (
+          <Suspense fallback={null}>
+            <RecallSession state={session} phases={phases} onClose={() => setSession(null)} onRestart={setSession} onOpenSource={openRecallSource} />
+          </Suspense>
+        )}
+        <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} phases={phases} onSelect={navigate} />
+      </DocumentsProvider>
     </JournalsProvider>
   );
 }

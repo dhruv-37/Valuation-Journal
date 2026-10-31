@@ -6,6 +6,7 @@ import { db } from '../../db/database';
 import type { ID } from '../../types';
 import { useActiveJournal, useJournals } from '../../hooks/useActiveJournal';
 import { overlayStack } from '../ui/Modal';
+import { plural } from '../../lib/format';
 import { useJournalActions } from './JournalsContext';
 
 /**
@@ -75,9 +76,10 @@ export function JournalSwitcher() {
             <path d="M8 9l8 14 8-14" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <span className="min-w-0 leading-tight">
-          <span className="hidden text-[10.5px] font-medium tracking-[0.14em] text-muted uppercase sm:block">Valuation Journal</span>
-          <span className="block max-w-[8.5rem] truncate font-display text-[17px] font-medium tracking-tight text-ink sm:max-w-[16rem] sm:text-[18px]">
+        {/* Shrinks only on phones: elsewhere a fixed max width avoids sub-pixel ellipses on names that fit. */}
+        <span className="min-w-0 leading-tight sm:shrink-0">
+          <span className="hidden text-[10.5px] font-medium tracking-[0.14em] whitespace-nowrap text-muted uppercase sm:block">Valuation Journal</span>
+          <span className="block max-w-[8.5rem] truncate font-display text-[17px] font-medium tracking-tight text-ink sm:max-w-[12rem] sm:text-[18px] md:max-w-[14rem] lg:max-w-[16rem]">
             {journal?.name ?? '…'}
           </span>
         </span>
@@ -117,7 +119,7 @@ export function JournalSwitcher() {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13.5px] font-medium text-ink">{j.name}</span>
                       <span className="block truncate text-xs text-muted">
-                        {phases} {phases === 1 ? 'phase' : 'phases'}
+                        {plural(phases, 'phase')}
                         {j.description ? ` · ${j.description}` : ''}
                       </span>
                     </span>

@@ -260,10 +260,10 @@ function ViewerBody({ snapshots, index, phases, onIndexChange, onClose, onEdit }
             {fullscreen ? <Minimize2 className="size-[18px]" /> : <Maximize2 className="size-[18px]" />}
           </ToolButton>
           <span className="mx-1 hidden h-5 w-px bg-white/15 sm:block" />
-          <ToolButton label={snapshot.pinned ? 'Unpin' : 'Pin as important'} onClick={() => setSnapshotPinned(snapshot.id, !snapshot.pinned)} active={snapshot.pinned} className="hidden sm:inline-flex">
+          <ToolButton label={snapshot.pinned ? 'Unpin' : 'Pin as important'} onClick={() => setSnapshotPinned(snapshot.id, !snapshot.pinned)} active={snapshot.pinned} className="max-sm:hidden">
             {snapshot.pinned ? <PinOff className="size-[18px]" /> : <Pin className="size-[18px]" />}
           </ToolButton>
-          <ToolButton label="Edit details" onClick={() => onEdit(snapshot)} className="hidden sm:inline-flex">
+          <ToolButton label="Edit details" onClick={() => onEdit(snapshot)} className="max-sm:hidden">
             <Pencil className="size-[17px]" />
           </ToolButton>
           <ToolButton label="Details (I)" onClick={() => setInfoOpen((o) => !o)} active={infoOpen}>

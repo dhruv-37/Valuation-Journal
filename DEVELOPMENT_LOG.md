@@ -265,3 +265,38 @@ The user asked for Milestones 4–6 in one brief (Recall; multiple journals, tem
 **Not verified:** very large backups (hundreds of MB, near 4 GB), a real saved download and file chooser, restoring in a different browser.
 
 **Test browser state:** the test database was deleted and recreated during the fresh-install test, then 4 journals were restored into it: "DCF Valuation" (fresh seed), "DCF Valuation (2)" (the old test data: 10 documents, 3 snapshots, 8 revision cards), "Trent Limited Valuation" (DCF template, one phase visited), "Fastenal Valuation" (copy of the old test data) and "Cost of Capital Reference" (1 phase, 1 TXT). The open journal is "Trent Limited Valuation". The `vj-test-stash` cache holds the 4-journal test backup.
+
+---
+
+## 2026-10-31: Milestone 6, Refinement and finalisation
+
+**Changed:**
+- **Overview and Recall heroes** stack below 1280 px instead of 1024 px; stats panels keep their natural width; the Resume label truncates.
+- **Header:** nav labels and counts from 1024 px; the journal name has a max width per breakpoint and only flex-shrinks on phones; the small "Valuation Journal" label never wraps.
+- **Phase header:** a Recall icon beside the Document Library icon.
+- **Reduced motion:** the phase layer cross-fades instead of zooming.
+- **Image viewer:** Pin/Edit hidden on phones as intended.
+- **Performance:** Document Library, Recall page and revision session lazy-loaded; thumbnails lazy-decoded. The size warning is gone (entry ≈ 423 kB + vendor ≈ 271 kB).
+- **Copy:** correct singular/plural counts (`plural()`), the creation date on its own line in Manage journals.
+- **Tooling:** a `valuation-journal-preview` launch configuration for the production build; CLAUDE.md notes the preview command, the reduced-motion rule and the lazy-loading rule.
+
+**Decisions**
+- **Fix what the review found rather than restyle.** The screens already follow one design language (warm surfaces, graphite type, restrained gold, Newsreader display type, consistent radii and shadows). The review found layout breakages at real widths, not a need for new styling, so changes were kept to those.
+- **Stack the hero at 1280 px, not truncate the stats.** Below that width the text column was too narrow to hold the title, description and Resume button beside a three- or four-figure stats panel.
+- **No flex-shrinking for the journal name above phone width.** The name's flex box rounded 132.6 px of text down to 132 px and Chrome drew an ellipsis on a name that fitted, with 300 px of free space. A fixed max width per breakpoint avoids that; the nav labels move to `lg` so the header still fits at 640 and 768 px.
+- **Reduced motion is checked in the component** for the clip-path zoom, because `MotionConfig` only disables transforms.
+- **Lazy-load whole pages, not small widgets.** The overview stays in the entry so a normal start needs no extra request; the other pages and the session are each 10–22 kB.
+
+**Bugs found and fixed:**
+- At 1024 px, the Resume button ran under the stats panel (the text column was 327 px wide).
+- With the hero stacked, the stats panel stretched across the page.
+- The journal name was truncated with an ellipsis although it fitted (sub-pixel rounding in a shrink-to-fit flex button).
+- "1 phases", "1 documents" in the journal dialogs.
+- The image viewer's Pin and Edit buttons showed on phones (known since Milestone 2).
+- During development the console showed errors from hot reloads of half-applied edits (hook order, a `lazy` import applied a moment late). A clean reload was used to confirm they were not real; CLAUDE.md now says so.
+
+**Verified** (details in PROJECT_CONTEXT.md §6): screenshots of the main screens in both themes; measured layouts at 1024 px and 375 px; lazy pages and a session; the production build in a browser for the first time (fresh seed, PDF render with the emitted worker, backup round trip); the integrity script at 0 problems over 5 journals; build clean with no size warning.
+
+**Not verified:** the reduced-motion transition (cannot be emulated in the in-app browser), touch devices, Firefox and Safari.
+
+**Test browser state:** unchanged from Milestone 5 apart from one more review in "DCF Valuation (2)" (a Remembered rating). The preview server's origin (port 4173) holds a separate small test database: the seed, one PDF and a restored copy.

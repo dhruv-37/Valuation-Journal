@@ -28,7 +28,7 @@ Other commands:
 
 ```bash
 npm run build    # type-check + production build into dist/
-npm run preview  # serve the production build locally
+npm run preview  # serve the production build locally (http://localhost:4173)
 ```
 
 ## Capturing material (inside a phase)
