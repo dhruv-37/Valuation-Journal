@@ -8,6 +8,8 @@ import { SnapshotThumb } from '../library/SnapshotThumb';
 import { useItemDocuments } from '../../hooks/useJournalData';
 import { useDocumentActions } from '../documents/DocumentsContext';
 import { DocumentChips } from '../documents/DocumentChips';
+import { RecallToggle } from '../recall/RecallToggle';
+import { RecallBadge } from '../recall/RecallBadge';
 
 interface KnowledgeCardViewProps {
   card: KnowledgeCard;
@@ -37,7 +39,7 @@ export function KnowledgeCardView({ card, activeTag, onEdit, onDelete, onTag, li
       <span className={`absolute inset-y-0 left-0 w-[3px] ${meta.bar}`} aria-hidden="true" />
       <div className="py-4 pr-4 pl-6 sm:py-5 sm:pr-5 sm:pl-7">
         <header className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${meta.text} ${meta.soft}`}>
               <Icon className="size-3.5" strokeWidth={2.2} />
               {meta.label}
@@ -47,8 +49,10 @@ export function KnowledgeCardView({ card, activeTag, onEdit, onDelete, onTag, li
                 <Pin className="size-3 fill-current" /> Pinned
               </span>
             )}
+            <RecallBadge sourceType="card" sourceId={card.id} />
           </div>
           <div className="reveal-on-hover -mt-1 -mr-1 flex items-center">
+            <RecallToggle sourceType="card" sourceId={card.id} label={card.title || 'This card'} />
             <IconButton size="sm" label="Attach an image to this card" onClick={() => library.pickImages({ cardId: card.id })}>
               <ImagePlus className="size-3.5" />
             </IconButton>

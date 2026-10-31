@@ -11,6 +11,8 @@ A personal, local-first workspace for the DCF valuation process. The overview sh
 
 A central **Document Library** (the **Documents** button in the top bar) lists every document in the journal, organised by phase, with search that also looks inside PDFs, text, Markdown and CSV files.
 
+**Recall** (the **Recall** button in the top bar) turns knowledge cards and extracts into flashcards with simple spaced repetition.
+
 Everything is stored in your browser's IndexedDB, including images and documents. There is no server, no account and no cloud viewer.
 
 ## Run it
@@ -57,6 +59,14 @@ Supported images for snapshots: PNG, JPG/JPEG and WebP, up to 25 MB each.
 - Text inside PDFs, TXT, Markdown and CSV files is read in the background for search (up to about 750,000 characters per file). Scanned PDFs without a text layer can be viewed but not searched.
 - Global search results for a PDF open it with the search already run inside the document.
 
+## Recall
+
+- **Add cards:** the brain icon on any knowledge card or extract (in its hover toolbar), or **Add cards** on the Recall page to pick many at once by phase, type or pinned. A revision card links to its source; it never copies it, so editing the card updates the flashcard. Deleting the card removes it from Recall.
+- **Revise:** **Revise N due** starts a session with the cards that are due; **Pinned only** revises just the pinned ones; the filters (phase, type, pinned, due, remembered, needs revision, new) plus **Revise N shown** revise any selection. **Session** sets how many cards a session holds (10, 20, 50 or all).
+- **A session** shows the question (the card title, or your own question set with the pencil icon) and hides the explanation until you reveal it. Then choose **Needs revision** or **Remembered**. Each card shows its phase and source reference, and **Open in the journal** jumps to it.
+- **Scheduling:** Remembered moves a card up a step, so it returns after 1, 3, 7, 14, 30, 60 and then 120 days. Needs revision sends it back to the start and brings it back after 10 minutes. New cards are due straight away. Rating a card again in the same session replaces the earlier rating.
+- The dashboard shows totals, remembered, needs revision, due now and progress by phase. The top bar's Recall button shows how many cards are due.
+
 ## Keyboard shortcuts
 
 | Keys | Action |
@@ -68,6 +78,8 @@ Supported images for snapshots: PNG, JPG/JPEG and WebP, up to 25 MB each.
 | `Ctrl/Cmd + Enter` | Save a card, snapshot, extract or document form |
 
 **Image viewer:** `+` / `−` zoom, `0` fit to screen, `1` actual size, `F` full screen, `I` details panel. Use the mouse wheel to zoom at the cursor, drag to pan, and double-click to zoom in or back to fit.
+
+**Recall session:** `Space` / `Enter` show the answer, `1` needs revision, `2` remembered, `←` / `→` previous / next card, `Esc` end the session.
 
 **Document viewer:** `Ctrl/Cmd + F` find in the PDF, `Enter` / `Shift + Enter` next / previous match, `+` / `−` zoom, `Ctrl/Cmd + wheel` zoom at the cursor, `N` / `P` next / previous page, `F` full screen, `I` details panel, `Esc` leaves the search box and then closes the viewer.
 
@@ -83,7 +95,8 @@ src/
   hooks/
     useJournalData.ts      Live queries; components re-render when data changes
     useBlobUrl.ts          Shared, reference-counted object URLs for stored files (revoked when unused), downloads
-    useHashRoute.ts        #/, #/phase/<id> and #/documents routing (back button + refresh work)
+    useHashRoute.ts        #/, #/phase/<id>, #/documents and #/recall routing (back button + refresh work)
+    useNow.ts              A clock that ticks each minute (for "due now" counts)
     useTheme.ts            Light / dark preference
   lib/
     images.ts              Image validation, dimensions and thumbnail generation
@@ -92,12 +105,14 @@ src/
     pdf.ts                 On-demand PDF.js loading, PDF text and first-page thumbnail
     csv.ts, markdown.ts    Small parsers for the CSV and Markdown previews
     search.ts              Global search across phases, tasks, cards, snapshots, extracts and documents
+    recall.ts              Spaced-repetition schedule (intervals, due dates, labels)
     cardTypes.ts, extractKinds.ts, format.ts
   components/
     overview/              Pathway, phase cards, summary
     workspace/             Zoom transition layer, phase header, objectives, checklist, journal, tabs
     library/               Snapshot gallery, image viewer, extracts, filters, editors, drop overlay
     documents/             Document Library page, phase Documents tab, viewer and previews, editor, link dialog
+    recall/                Recall dashboard, revision session, flashcard, add-to-Recall dialog, card toggles
     phases/                Add / edit / reorder / delete phase dialogs
     search/                Global search palette
     ui/                    Buttons, modal, confirm dialog, toasts, inline editing, tag input, select…
@@ -108,8 +123,9 @@ scripts/
 ## Data notes
 
 - The starter journal is written only when the database is created for the first time. Your edits are never overwritten on later launches.
-- **Schema versions:** v1 (Milestone 1) holds phases, checklist, cards, attachments and meta. v2 (Milestone 2) adds `snapshots` and `extracts`. v3 (Milestone 3) adds `documents` and `documentTexts`. Each upgrade keeps all existing content. To evolve the schema, add a new `this.version(n)` block in `db/database.ts`; never edit an earlier version.
+- **Schema versions:** v1 (Milestone 1) holds phases, checklist, cards, attachments and meta. v2 (Milestone 2) adds `snapshots` and `extracts`. v3 (Milestone 3) adds `documents` and `documentTexts`. v4 (Milestone 4) adds `revisions` and `reviewLog`. Each upgrade keeps all existing content. To evolve the schema, add a new `this.version(n)` block in `db/database.ts`; never edit an earlier version.
 - Snapshot and document records hold metadata and a small thumbnail. Full files are stored separately in `attachments`, so lists stay fast.
 - Deleting a snapshot deletes its stored image. Deleting a document deletes its file and search text. Deleting a card, extract or snapshot removes its connections but keeps the connected documents.
-- Deleting a phase removes its tasks, cards, snapshots and extracts. Documents filed in it are kept in the Document Library as **Unfiled**.
+- Deleting a card or extract also removes its revision card and review history. Removing a card from Recall keeps the card.
+- Deleting a phase removes its tasks, cards, snapshots, extracts and their revision cards. Documents filed in it are kept in the Document Library as **Unfiled**.
 - Data lives in the browser profile you use. A different browser (or a private window) starts with a fresh starter journal, and clearing site data deletes the journal, documents included. There is no backup or export yet, so keep your original files.

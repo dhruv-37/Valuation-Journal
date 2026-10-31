@@ -178,6 +178,52 @@ export interface Attachment extends Timestamps {
   caption?: string;
 }
 
+/* ---------------------------------- Recall ---------------------------------- */
+
+/** What a revision card was made from. The source keeps the content; the revision only schedules it. */
+export type RevisionSourceType = 'card' | 'extract';
+
+/** `new` until first reviewed, then the result of the latest review. */
+export type RevisionStatus = 'new' | 'remembered' | 'needs-revision';
+
+export type ReviewResult = 'remembered' | 'needs-revision';
+
+/**
+ * A knowledge card or extract added to Recall. It links to its source instead
+ * of copying it, so edits to the card show up in revision immediately.
+ */
+export interface RevisionCard extends Timestamps {
+  id: ID;
+  journalId: ID;
+  sourceType: RevisionSourceType;
+  sourceId: ID;
+  /** Optional question shown on the front; the source title is used when blank. */
+  prompt: string;
+  status: RevisionStatus;
+  /** Step on the interval ladder (see lib/recall.ts); 0 = start again. */
+  level: number;
+  reviewCount: number;
+  /** Times it was marked Needs revision. */
+  lapses: number;
+  lastReviewedAt?: number;
+  /** When it is next due; new cards are due immediately. */
+  dueAt: number;
+}
+
+/** Scheduling fields of a revision card, saved with each review so it can be undone. */
+export type RevisionSchedule = Pick<RevisionCard, 'status' | 'level' | 'reviewCount' | 'lapses' | 'lastReviewedAt' | 'dueAt'>;
+
+/** One review of one revision card (the revision history). */
+export interface ReviewLogEntry {
+  id: ID;
+  revisionId: ID;
+  journalId: ID;
+  reviewedAt: number;
+  result: ReviewResult;
+  /** Schedule before this review, so a mis-click can be undone exactly. */
+  before: RevisionSchedule;
+}
+
 export interface MetaEntry {
   key: string;
   value: unknown;

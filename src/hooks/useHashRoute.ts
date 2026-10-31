@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * Minimal hash router: `#/` is the overview, `#/phase/<id>` a phase workspace
- * and `#/documents` the Document Library. Hash routing keeps browser
- * back/forward working and survives refresh without any server configuration.
+ * Minimal hash router: `#/` is the overview, `#/phase/<id>` a phase workspace,
+ * `#/documents` the Document Library and `#/recall` the Recall dashboard.
+ * Hash routing keeps browser back/forward working and survives refresh without
+ * any server configuration.
  */
 
 const ROUTE_EVENT = 'vj:route';
@@ -32,12 +33,17 @@ export function useRoutePhaseId() {
   return useSyncExternalStore(subscribe, getPhaseId);
 }
 
-export type PageRoute = 'overview' | 'documents';
+export type PageRoute = 'overview' | 'documents' | 'recall';
+
+const PAGE_HASH: Record<PageRoute, string> = { overview: '#/', documents: '#/documents', recall: '#/recall' };
 
 /** The full-page view at the current route; null while a phase workspace is open. */
 function getPage(): PageRoute | null {
   if (getPhaseId()) return null;
-  return /^#\/documents\b/.test(window.location.hash) ? 'documents' : 'overview';
+  const hash = window.location.hash;
+  if (/^#\/documents\b/.test(hash)) return 'documents';
+  if (/^#\/recall\b/.test(hash)) return 'recall';
+  return 'overview';
 }
 
 export function useRoutePage() {
@@ -62,12 +68,17 @@ export const router = {
   toOverview(fallback: PageRoute = 'overview') {
     // If we arrived from the previous page, step back so the back button stays natural.
     if ((history.state as { fromOverview?: boolean } | null)?.fromOverview) history.back();
-    else go(fallback === 'documents' ? '#/documents' : '#/', true, null);
+    else go(PAGE_HASH[fallback], true, null);
   },
   /** Main navigation to the Document Library (from the overview or a phase). */
   toDocuments() {
     if (getPage() === 'documents') return;
     go('#/documents', false, { fromOverview: true });
+  },
+  /** Main navigation to the Recall dashboard. */
+  toRecall() {
+    if (getPage() === 'recall') return;
+    go('#/recall', false, { fromOverview: true });
   },
   /** Main navigation from the Document Library to the pathway overview. */
   toPathway() {

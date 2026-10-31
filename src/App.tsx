@@ -13,6 +13,9 @@ import { PhaseFormDialog, type PhaseFormState } from './components/phases/PhaseF
 import { DocumentsProvider } from './components/documents/DocumentsProvider';
 import { DocumentLibraryPage } from './components/documents/DocumentLibraryPage';
 import { isDialogOpen } from './components/ui/Modal';
+import { RecallPage } from './components/recall/RecallPage';
+import { RecallSession, type RecallSessionState } from './components/recall/RecallSession';
+import type { RecallItem } from './hooks/useJournalData';
 
 export default function App() {
   const phases = usePhases();
@@ -26,6 +29,7 @@ export default function App() {
   const [manageOpen, setManageOpen] = useState(false);
   const [phaseForm, setPhaseForm] = useState<PhaseFormState>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  const [session, setSession] = useState<RecallSessionState | null>(null);
 
   const activeId = phases && routePhaseId && phases.some((p) => p.id === routePhaseId) ? routePhaseId : null;
   // The exit animation needs to know which card to shrink back into.
@@ -66,6 +70,15 @@ export default function App() {
     [activeId, openPhase],
   );
 
+  /** From a revision card to its source card or extract in the journal. */
+  const openRecallSource = useCallback(
+    (item: RecallItem) => {
+      setSession(null);
+      navigate({ phaseId: item.phaseId, itemId: item.revision.sourceId, kind: item.card ? 'card' : 'extract' });
+    },
+    [navigate],
+  );
+
   // Global shortcuts: Ctrl/Cmd+K or "/" opens search.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -90,6 +103,14 @@ export default function App() {
       <div inert={!!activeId} aria-hidden={!!activeId}>
         {page === 'documents' ? (
           <DocumentLibraryPage phases={phases} onOpenPhase={openPhase} onSearch={() => setSearchOpen(true)} covered={!!activeId} />
+        ) : page === 'recall' ? (
+          <RecallPage
+            phases={phases}
+            documentCount={documents?.length ?? 0}
+            onSearch={() => setSearchOpen(true)}
+            onStart={setSession}
+            onOpenSource={openRecallSource}
+          />
         ) : (
           <Overview
             phases={phases}
@@ -111,7 +132,7 @@ export default function App() {
             phaseId={activeId}
             phases={phases}
             focus={focus}
-            backLabel={page === 'documents' ? 'Documents' : 'Pathway'}
+            backLabel={page === 'documents' ? 'Documents' : page === 'recall' ? 'Recall' : 'Pathway'}
             onClose={closePhase}
             onNavigate={openPhase}
             onEditPhase={(phase: Phase) => setPhaseForm({ mode: 'edit', phase })}
@@ -129,6 +150,7 @@ export default function App() {
         onEdit={(phase) => setPhaseForm({ mode: 'edit', phase })}
       />
       <PhaseFormDialog state={phaseForm} onClose={() => setPhaseForm(null)} />
+      <RecallSession state={session} phases={phases} onClose={() => setSession(null)} onRestart={setSession} onOpenSource={openRecallSource} />
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} phases={phases} onSelect={navigate} />
     </DocumentsProvider>
   );

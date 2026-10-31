@@ -8,6 +8,8 @@ import { useToast } from '../ui/Toast';
 import { useItemDocuments } from '../../hooks/useJournalData';
 import { useDocumentActions } from '../documents/DocumentsContext';
 import { DocumentChips } from '../documents/DocumentChips';
+import { RecallToggle } from '../recall/RecallToggle';
+import { RecallBadge } from '../recall/RecallBadge';
 
 interface ExtractViewProps {
   extract: KnowledgeExtract;
@@ -65,8 +67,10 @@ export function ExtractView({ extract, activeTag, onEdit, onDelete, onTag }: Ext
               </span>
             )}
             <span className="text-[11.5px] text-faint tabular">{formatDate(extract.createdAt)}</span>
+            <RecallBadge sourceType="extract" sourceId={extract.id} />
           </div>
           <div className="reveal-on-hover -mt-1 -mr-1 flex items-center">
+            <RecallToggle sourceType="extract" sourceId={extract.id} label={extract.title || extract.text.slice(0, 60)} />
             <IconButton size="sm" label="Copy text" onClick={copy}>
               <Copy className="size-3.5" />
             </IconButton>

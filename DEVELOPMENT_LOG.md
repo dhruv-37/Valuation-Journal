@@ -202,3 +202,34 @@ No application code, schema or data changed. The in-app browser's test database 
 - The first commit is the Milestone 3 checkpoint: all source, config, `.claude/launch.json` and docs (96 files).
 - CLAUDE.md now asks for a checkpoint commit at the end of each milestone.
 - No application code or data changed.
+
+---
+
+## 2026-10-31: Milestone 4, Recall & Revision
+
+The user asked for Milestones 4–6 in one brief (Recall; multiple journals, templates and ZIP backups; refinement), to be done in order with docs and a checkpoint commit after each. This entry covers Milestone 4 only.
+
+**Built:**
+- Revision cards made from knowledge cards and extracts (brain toggle on each item, or the bulk "Add cards" dialog).
+- A Recall dashboard (`#/recall`, in the main navigation with a due badge): totals, remembered, needs revision, due now, progress by phase, filters (status, phase, type, pinned, text), session size, revise due / pinned / shown.
+- A distraction-free session overlay: question first, reveal, Needs revision / Remembered with the next interval shown, previous/next, a summary with "revise the missed ones again", keyboard first.
+- Schema v4: `revisions` and `reviewLog`.
+
+**Decisions**
+- **Link, don't copy.** A revision card stores `sourceType + sourceId`, an optional question and the schedule. The prompt and answer are derived from the live card or extract, so edits flow through and no content is duplicated. A unique compound index `&[sourceType+sourceId]` makes a second revision card for the same source impossible; `addToRecall` also skips existing ones.
+- **A Leitner ladder instead of SM-2.** The user asked for something simple and understandable: Remembered climbs 1 → 3 → 7 → 14 → 30 → 60 → 120 days; Needs revision resets to the bottom and returns in 10 minutes. The page explains this in one sentence. New cards are always due.
+- **Each review is logged with the schedule it replaced.** That gives the revision history the backup must carry, and exact undo: re-rating a card in the same session undoes the earlier rating first, so going back and changing your mind never double-counts.
+- **`journalId` on revision records** (taken from the source's phase), so Milestone 5 can scope Recall per journal without a migration.
+- **Cascades:** deleting a card, extract or phase removes the matching revision cards and logs in the same transaction.
+- **The session lives in `App`**, as the document viewer lives in `DocumentsProvider`, so it sits above any page and "Open in the journal" can navigate (the phase's back button then reads "Recall").
+
+**Bugs found and fixed:**
+- **"Due now 0" right after adding cards.** The page's clock was a moment older than the new cards' `dueAt`. Fix: new cards count as due regardless of time (`isDue`).
+- **Interval labels read "next in tomorrow" and "next in 24 h".** Fix: `intervalLabel` formats days directly; `relativeDue` switches to days when the hours round to 24.
+- **A long inline shell heredoc failed to parse** when updating these docs (tooling, not the app). The edit script was moved to a file.
+
+**Verified** (in-app browser; details in PROJECT_CONTEXT.md §6): v3 → v4 migration on the existing test database with all counts intact; bulk add with filters; a keyboard-driven session including re-rating; dashboard counts and the nav badge; badges and toggles in a phase; the delete cascade; "Open in the journal" and the back label; 375 px layout; no console errors; build clean (main JS ≈ 735 kB).
+
+**Not verified:** visual screenshots of the session animations (the pane was hidden, which pauses animation frames).
+
+**Test browser state:** the in-app database is now at version 40, with 8 revision cards and 2 review-log entries added to the Milestone 3 test data. The card "Illustrative WACC" in phase 07 was deleted during the cascade test.

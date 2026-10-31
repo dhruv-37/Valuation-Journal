@@ -1,8 +1,21 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
 import { DEFAULT_JOURNAL_ID } from '../lib/id';
+import { useNow } from './useNow';
+import { isDue } from '../lib/recall';
 import { excerpt, tokenize } from '../lib/search';
-import type { ChecklistItem, ID, KnowledgeCard, KnowledgeExtract, Phase, PhaseStats, ResearchDocument, Snapshot } from '../types';
+import type {
+  ChecklistItem,
+  ID,
+  KnowledgeCard,
+  KnowledgeExtract,
+  Phase,
+  PhaseStats,
+  ResearchDocument,
+  RevisionCard,
+  RevisionSourceType,
+  Snapshot,
+} from '../types';
 
 /** All phases of the journal, in pathway order. `undefined` while loading. */
 export function usePhases() {
@@ -159,4 +172,48 @@ export function useAttachmentBlob(attachmentId: ID | null | undefined) {
 export function useItemDocuments(kind: 'card' | 'extract' | 'snapshot', itemId: ID) {
   const field = kind === 'card' ? 'cardIds' : kind === 'extract' ? 'extractIds' : 'snapshotIds';
   return useLiveQuery(async () => (await db.documents.where(field).equals(itemId).toArray()).sort(newestFirst), [field, itemId]) ?? [];
+}
+
+/* ---------------------------------- Recall ---------------------------------- */
+
+/** A revision card joined with the card or extract it was made from. */
+export interface RecallItem {
+  revision: RevisionCard;
+  card?: KnowledgeCard;
+  extract?: KnowledgeExtract;
+  phaseId: ID;
+  pinned: boolean;
+}
+
+/** Every revision card of the journal with its source. `undefined` while loading. */
+export function useRecallItems() {
+  return useLiveQuery(async () => {
+    const revisions = await db.revisions.where('journalId').equals(DEFAULT_JOURNAL_ID).toArray();
+    const cardIds = revisions.filter((r) => r.sourceType === 'card').map((r) => r.sourceId);
+    const extractIds = revisions.filter((r) => r.sourceType === 'extract').map((r) => r.sourceId);
+    const [cards, extracts] = await Promise.all([db.cards.bulkGet(cardIds), db.extracts.bulkGet(extractIds)]);
+    const cardMap = new Map(cards.filter((c) => !!c).map((c) => [c.id, c]));
+    const extractMap = new Map(extracts.filter((e) => !!e).map((e) => [e.id, e]));
+    const items: RecallItem[] = [];
+    for (const revision of revisions) {
+      const card = revision.sourceType === 'card' ? cardMap.get(revision.sourceId) : undefined;
+      const extract = revision.sourceType === 'extract' ? extractMap.get(revision.sourceId) : undefined;
+      const source = card ?? extract;
+      // Deletes remove revisions with their source; this only guards against a half-loaded state.
+      if (!source) continue;
+      items.push({ revision, card, extract, phaseId: source.phaseId, pinned: source.pinned });
+    }
+    return items;
+  }, []);
+}
+
+/** The revision card made from one card or extract, or null when it is not in Recall. */
+export function useSourceRevision(sourceType: RevisionSourceType, sourceId: ID) {
+  return useLiveQuery(async () => (await db.revisions.where('[sourceType+sourceId]').equals([sourceType, sourceId]).first()) ?? null, [sourceType, sourceId]);
+}
+
+/** Number of revision cards due now, for the main navigation badge. Re-checked every minute. */
+export function useDueRevisionCount() {
+  const now = useNow();
+  return useLiveQuery(() => db.revisions.where('journalId').equals(DEFAULT_JOURNAL_ID).filter((r) => isDue(r)).count(), [now]);
 }

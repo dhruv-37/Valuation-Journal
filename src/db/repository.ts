@@ -23,8 +23,13 @@ import type {
   KnowledgeExtract,
   Phase,
   ResearchDocument,
+  ReviewLogEntry,
+  ReviewResult,
+  RevisionCard,
+  RevisionSourceType,
   Snapshot,
 } from '../types';
+import { nextSchedule, scheduleOf } from '../lib/recall';
 
 /**
  * All writes go through these functions so the UI never touches tables directly.
@@ -65,7 +70,8 @@ export async function updatePhase(id: ID, changes: Partial<Pick<Phase, 'title' |
  * are kept in the Document Library as unfiled (their files are not phase-owned).
  */
 export async function deletePhase(id: ID) {
-  await db.transaction('rw', [db.phases, db.checklist, db.cards, db.attachments, db.snapshots, db.extracts, db.documents], async () => {
+  const tables = [db.phases, db.checklist, db.cards, db.attachments, db.snapshots, db.extracts, db.documents, db.revisions, db.reviewLog];
+  await db.transaction('rw', tables, async () => {
     const [cardIds, snapshotIds, extractIds] = (await Promise.all([
       db.cards.where('phaseId').equals(id).primaryKeys(),
       db.snapshots.where('phaseId').equals(id).primaryKeys(),
@@ -73,6 +79,8 @@ export async function deletePhase(id: ID) {
     ])) as ID[][];
     await unlinkCardsFromSnapshots(cardIds);
     await unlinkFromDocuments({ cardIds, snapshotIds, extractIds, phaseId: id });
+    await removeRevisionsOf('card', cardIds);
+    await removeRevisionsOf('extract', extractIds);
     await db.checklist.where('phaseId').equals(id).delete();
     await db.cards.where('phaseId').equals(id).delete();
     await db.snapshots.where('phaseId').equals(id).delete();
@@ -154,10 +162,11 @@ export async function setCardPinned(id: ID, pinned: boolean) {
 }
 
 export async function deleteCard(id: ID) {
-  await db.transaction('rw', [db.cards, db.attachments, db.snapshots, db.documents], async () => {
+  await db.transaction('rw', [db.cards, db.attachments, db.snapshots, db.documents, db.revisions, db.reviewLog], async () => {
     await db.attachments.where('[ownerType+ownerId]').equals(['card', id]).delete();
     await unlinkCardsFromSnapshots([id]);
     await unlinkFromDocuments({ cardIds: [id] });
+    await removeRevisionsOf('card', [id]);
     await db.cards.delete(id);
   });
 }
@@ -319,8 +328,9 @@ export async function setExtractPinned(id: ID, pinned: boolean) {
 }
 
 export async function deleteExtract(id: ID) {
-  await db.transaction('rw', [db.extracts, db.documents], async () => {
+  await db.transaction('rw', [db.extracts, db.documents, db.revisions, db.reviewLog], async () => {
     await unlinkFromDocuments({ extractIds: [id] });
+    await removeRevisionsOf('extract', [id]);
     await db.extracts.delete(id);
   });
 }
@@ -515,6 +525,92 @@ async function unlinkFromDocuments(gone: { cardIds?: ID[]; extractIds?: ID[]; sn
         if (d.phaseId === gone.phaseId) d.phaseId = null;
       }
     });
+}
+
+/* ---------------------------------- Recall ---------------------------------- */
+
+/**
+ * Adds cards or extracts to Recall. Sources already in Recall are skipped, so
+ * this never creates duplicates. Returns how many were added.
+ */
+export async function addToRecall(sourceType: RevisionSourceType, sourceIds: ID[]): Promise<number> {
+  if (sourceIds.length === 0) return 0;
+  const table = sourceType === 'card' ? db.cards : db.extracts;
+  return db.transaction('rw', [db.revisions, table, db.phases], async () => {
+    const existing = new Set(
+      (await db.revisions.where('[sourceType+sourceId]').anyOf(sourceIds.map((id) => [sourceType, id])).toArray()).map((r) => r.sourceId),
+    );
+    const sources = (await table.bulkGet(sourceIds.filter((id) => !existing.has(id)))).filter((s) => !!s);
+    const phases = new Map((await db.phases.bulkGet([...new Set(sources.map((s) => s.phaseId))])).filter((p) => !!p).map((p) => [p.id, p]));
+    const stamp = now();
+    const added: RevisionCard[] = [];
+    for (const source of sources) {
+      const phase = phases.get(source.phaseId);
+      if (!phase) continue;
+      added.push({
+        id: uid(),
+        journalId: phase.journalId,
+        sourceType,
+        sourceId: source.id,
+        prompt: '',
+        status: 'new',
+        level: 0,
+        reviewCount: 0,
+        lapses: 0,
+        dueAt: stamp,
+        createdAt: stamp,
+        updatedAt: stamp,
+      });
+    }
+    await db.revisions.bulkAdd(added);
+    return added.length;
+  });
+}
+
+/** Removes a revision card and its history. The source card or extract is kept. */
+export async function removeFromRecall(revisionIds: ID[]) {
+  await db.transaction('rw', [db.revisions, db.reviewLog], async () => {
+    await db.reviewLog.where('revisionId').anyOf(revisionIds).delete();
+    await db.revisions.bulkDelete(revisionIds);
+  });
+}
+
+export async function updateRevisionPrompt(id: ID, prompt: string) {
+  await db.revisions.update(id, { prompt: prompt.trim(), updatedAt: now() });
+}
+
+/** Records a review and reschedules the card. Returns the log entry id (for undo). */
+export async function reviewRevision(id: ID, result: ReviewResult): Promise<ID | null> {
+  return db.transaction('rw', [db.revisions, db.reviewLog], async () => {
+    const card = await db.revisions.get(id);
+    if (!card) return null;
+    const at = now();
+    const entry: ReviewLogEntry = { id: uid(), revisionId: id, journalId: card.journalId, reviewedAt: at, result, before: scheduleOf(card) };
+    await db.reviewLog.add(entry);
+    await db.revisions.update(id, { ...nextSchedule(card, result, at), updatedAt: at });
+    return entry.id;
+  });
+}
+
+/** Undoes one review: restores the schedule saved with it and drops it from the history. */
+export async function undoReview(logId: ID) {
+  await db.transaction('rw', [db.revisions, db.reviewLog], async () => {
+    const entry = await db.reviewLog.get(logId);
+    if (!entry) return;
+    const { lastReviewedAt, ...rest } = entry.before;
+    // Dexie's update() removes a field set to undefined, which is what a never-reviewed card needs.
+    await db.revisions.update(entry.revisionId, { ...rest, lastReviewedAt, updatedAt: now() });
+    await db.reviewLog.delete(logId);
+  });
+}
+
+/** Removes the revision cards (and history) of deleted sources. Call inside a transaction that includes both tables. */
+async function removeRevisionsOf(sourceType: RevisionSourceType, sourceIds: ID[]) {
+  if (sourceIds.length === 0) return;
+  const ids = (await db.revisions.where('[sourceType+sourceId]').anyOf(sourceIds.map((id) => [sourceType, id])).primaryKeys()) as ID[];
+  if (ids.length === 0) return;
+  await db.reviewLog.where('revisionId').anyOf(ids).delete();
+  await db.revisions.bulkDelete(ids);
 }
 
 /* ----------------------------------- Meta ----------------------------------- */
