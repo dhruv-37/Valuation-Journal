@@ -7,7 +7,7 @@ import type { SearchSelection } from '../search/SearchPalette';
 import { useAttachmentBlob, useDocument } from '../../hooks/useJournalData';
 import { useBlobUrl } from '../../hooks/useBlobUrl';
 import { DOCUMENT_KIND_META, formatBadge } from '../../lib/documents';
-import { isTypingTarget, phaseNumber } from '../../lib/format';
+import { isTypingTarget, phaseNumber, plural } from '../../lib/format';
 import { formatBytes } from '../../lib/images';
 import { overlayStack } from '../ui/Modal';
 import { IconButton } from '../ui/Button';
@@ -138,7 +138,7 @@ function ViewerBody({ state, phases, onClose, onNavigate }: DocumentViewerProps 
         <div className="min-w-0 flex-1 pl-1 sm:pl-0">
           <p className="truncate text-[10.5px] font-medium tracking-[0.14em] text-muted uppercase tabular">
             {doc && `${formatBadge(doc.fileName, doc.kind)} · ${formatBytes(doc.size)}`}
-            {doc?.pageCount ? ` · ${doc.pageCount} pages` : ''}
+            {doc?.pageCount ? ` · ${plural(doc.pageCount, 'page')}` : ''}
             {phaseIndex >= 0 ? ` · Phase ${phaseNumber(phaseIndex)}` : doc && !doc.phaseId ? ' · Unfiled' : ''}
           </p>
           <h2 className="truncate font-display text-[17px] leading-tight">{doc ? doc.title || doc.fileName : 'Loading…'}</h2>

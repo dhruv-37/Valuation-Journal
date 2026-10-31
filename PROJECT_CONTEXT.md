@@ -357,6 +357,8 @@ The 13 seeded phases are:
 | `src/components/search/` | `SearchPalette` |
 | `src/components/ui/` | `Button`/`IconButton`/`Kbd`, `Modal`, `ConfirmProvider`, `Toast`, `EditableText`, `Menu`, `ProgressBar`, `TagInput`, `Field`, `AddLineInput`, `Select` |
 | `scripts/vite-pdfjs-assets.mjs` (+ `.d.mts`) | Vite plugin: PDF.js runtime assets at `/pdfjs/` |
+| `docs/USER_GUIDE.md`, `docs/images/`, `docs/Valuation-Journal-User-Guide.pdf` | End-user manual with screenshots, and its PDF edition |
+| `scripts/manual/` | Regenerates the guide's screenshots and PDF with headless Chrome (see its README); no dependencies |
 | `.claude/launch.json` | `valuation-journal` (dev server, port 5173) and `valuation-journal-preview` (production build, port 4173) |
 
 ### Files touched in Milestone 3

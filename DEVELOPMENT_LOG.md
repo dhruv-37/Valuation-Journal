@@ -334,3 +334,22 @@ The user asked for Milestones 4–6 in one brief (Recall; multiple journals, tem
 - At the user's request, created the **public** repository `dhruv-37/Valuation-Journal` (GitHub does not allow spaces, so "Valuation Journal" became `Valuation-Journal`) and pushed `main` with its full history (Milestone 3 checkpoint through the backup reminder).
 - Checked before publishing: only source, config and docs are tracked (`node_modules` and `dist` are ignored); no secrets or user data.
 - No application code changed.
+
+---
+
+## 2026-10-31: User guide
+
+**Added:**
+- `docs/USER_GUIDE.md`: an end-user manual in 14 sections (getting started, navigation, pathway, phases, cards, library, documents, search, Recall, journals, backup and restore, keyboard shortcuts, a suggested way of working, troubleshooting), with 18 screenshots in `docs/images/`. Linked from the README.
+- `docs/Valuation-Journal-User-Guide.pdf`: the same guide as a 25-page A4 PDF with a cover, contents, page numbers and bookmarks, set in the app's own fonts and colours.
+- `scripts/manual/`: the generator (see its README).
+- A small app fix found while capturing: the document viewer header said "1 pages" (now uses `plural()`).
+
+**Decisions**
+- **Screenshots from headless Chrome over the DevTools protocol**, driven by a ~60-line Node module (`cdp.mjs`, using Node 24's built-in `fetch` and `WebSocket`). The in-app browser pane's captures were unreliable while the pane was hidden (sometimes scaled, sometimes cropped). Headless Chrome gives consistent 1280 × 800 @2× images and a clean, separate profile in the temp folder.
+- **Clean demo content instead of test leftovers:** `setup-demo.js` builds a "DCF Valuation Playbook" journal through the app's own repository functions (checklist progress, canvas-drawn charts as snapshots, a generated PDF, CSV, Markdown and an Excel stand-in, extracts, a Recall deck with some reviews, two more journals).
+- **One source, two outputs:** the PDF is generated from the Markdown (`md2html.py`, a small converter for the subset the guide uses) and printed by Chrome, so the repository guide and the PDF can't drift apart. No new dependencies (no Python PDF libraries were installed, and none were added).
+
+**Verified:** every screenshot inspected; the PDF checked page by page through a contact sheet rendered with the project's PDF.js (stranded figures and an orphaned intro page fixed by pairing the phone and desktop shots, moving the intro onto the contents page and sizing figures to 82 %); the documented regeneration commands reproduce the same PDF from a fresh temp profile; button labels in the guide checked against the code; build clean.
+
+**Test browser:** the in-app test database's "DCF Valuation (2)" journal was renamed "DCF Valuation Playbook" and some of its tasks ticked during an earlier screenshot attempt. The headless profiles live in the temp folder and are separate from it.

@@ -15,6 +15,8 @@ A central **Document Library** (the **Documents** button in the top bar) lists e
 
 You can keep several **journals** (for example a DCF playbook, one per company you value, a cost-of-capital reference), each completely separate, and back them up to a **ZIP file**.
 
+**New here? Read the [User Guide](docs/USER_GUIDE.md)** (also as a [PDF](docs/Valuation-Journal-User-Guide.pdf)): a step-by-step manual with screenshots.
+
 Everything is stored in your browser's IndexedDB, including images and documents. There is no server, no account and no cloud viewer.
 
 ## Run it
